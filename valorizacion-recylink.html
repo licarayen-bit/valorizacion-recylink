@@ -1367,8 +1367,10 @@ function renderCopecObjetivos() {
   // Calcular todos los objetivos de una vez (desde Excel)
   var allObjResults = rawRows.length > 0 ? calcObjetivos() : [];
   var objBySucMes = {};
+  var objAnualBySuc = {};
   allObjResults.forEach(function(r){
-    objBySucMes[r.suc + '|' + r.mesKey + '|' + r.obj] = r;
+    if (r.anual) objAnualBySuc[r.suc + '|' + r.obj] = r;
+    else objBySucMes[r.suc + '|' + r.mesKey + '|' + r.obj] = r;
   });
 
   // Si no hay Excel, usar datos del Sheet
@@ -1378,12 +1380,7 @@ function renderCopecObjetivos() {
       var suc2 = ((r['Sucursal']||r[1]||'')+'').trim();
       var mes2 = (r['Mes']||r[2]||'')+'';
       var obj2 = (r['Objetivo']||r[3]||'')+'';
-      if (!suc2 || !obj2 || mes2 === 'Anual') return;
-      var mesKey = null;
-      Object.keys(MESES_ES).forEach(function(k){
-        if (MESES_ES[k] === mes2) mesKey = new Date().getFullYear()+'-'+String(k).padStart(2,'0');
-      });
-      if (!mesKey) return;
+      if (!suc2 || !obj2) return;
       var _cv = r['% cumplimiento']; var _c4 = r[4];
       var estadoRaw = (_cv !== undefined && _cv !== null && _cv !== '' ? _cv : (_c4 !== undefined && _c4 !== null ? _c4 : ''))+'';
       var estado = estadoRaw;
@@ -1396,9 +1393,20 @@ function renderCopecObjetivos() {
         }
       }
       var detalle2 = (r['Detalle']||r[5]||'')+'';
+      if (mes2 === 'Anual') {
+        objAnualBySuc[suc2+'|'+obj2] = {suc:suc2, obj:obj2, estado:estado, detalle:detalle2};
+        return;
+      }
+      var mesKey = null;
+      Object.keys(MESES_ES).forEach(function(k){
+        if (MESES_ES[k] === mes2) mesKey = new Date().getFullYear()+'-'+String(k).padStart(2,'0');
+      });
+      if (!mesKey) return;
       objBySucMes[suc2+'|'+mesKey+'|'+obj2] = {suc:suc2, mesKey:mesKey, obj:obj2, estado:estado, detalle:detalle2};
     });
   }
+
+  var objetivosAnuales = (emp.objetivos || []).filter(function(o){ return OBJ_ANUALES[o.tipo]; });
 
   var thBase='background:var(--surface2);padding:8px 12px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border);white-space:nowrap;';
   var thFirst=thBase+'text-align:left;min-width:200px;';
@@ -1440,6 +1448,32 @@ function renderCopecObjetivos() {
       +(acum!==null?'<span style="font-size:13px;font-weight:600;color:'+colorAcum+'">'+fmtPct(acum)+' acum.</span>':'')
       +'</div>';
     grid.appendChild(header);
+
+    // Tabla de objetivos anuales (ej: Socovesa)
+    if (objetivosAnuales.length > 0) {
+      var anualWrap=document.createElement('div');
+      anualWrap.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:10px;overflow-x:auto';
+      var anualHead=document.createElement('div');
+      anualHead.style.cssText='padding:8px 14px;background:var(--surface2);border-bottom:1px solid var(--border)';
+      anualHead.innerHTML='<span style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">Analisis anual</span>';
+      anualWrap.appendChild(anualHead);
+      var anualTable=document.createElement('table');
+      anualTable.style.cssText='width:100%;border-collapse:collapse;font-size:13px';
+      anualTable.innerHTML='<thead><tr><th style="'+thFirst+'">Objetivo</th><th style="'+thCol+'">Estado</th></tr></thead>';
+      var anualBody=document.createElement('tbody');
+      objetivosAnuales.forEach(function(o, i){
+        var r = objAnualBySuc[suc+'|'+o.nombre];
+        var tr=document.createElement('tr');
+        if (i>0) tr.style.borderTop='1px solid var(--border)';
+        var cells='<td style="padding:9px 12px;font-weight:500;color:var(--text);border-right:1px solid var(--border)">'+o.nombre+'</td>';
+        cells += r ? estadoCell(r.estado, r.detalle) : '<td style="padding:9px 12px;text-align:center;border-left:1px solid var(--border);color:var(--text-muted)">--</td>';
+        tr.innerHTML=cells;
+        anualBody.appendChild(tr);
+      });
+      anualTable.appendChild(anualBody);
+      anualWrap.appendChild(anualTable);
+      grid.appendChild(anualWrap);
+    }
 
     var tableWrap=document.createElement('div');
     tableWrap.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px;overflow-x:auto';
