@@ -1556,23 +1556,28 @@ function renderCopecObjetivos() {
       trDocs.innerHTML=docsCells; tbody.appendChild(trDocs);
     }
 
-    // Filas adicionales para Abastible: SINADER y KPI
-    if (empresaActual === 'abastible') {
+    // Fila SINADER (Abastible y Socovesa)
+    var objSinader = (emp.objetivos || []).find(function(o){ return o.tipo === 'sinader'; });
+    if (objSinader) {
       var trSin=document.createElement('tr');
       trSin.style.borderTop='2px solid var(--border)';
-      var sinCells='<td style="padding:9px 12px;font-weight:500;color:var(--text);border-right:1px solid var(--border)">Declarar mensualmente en SINADER</td>';
+      var sinCells='<td style="padding:9px 12px;font-weight:500;color:var(--text);border-right:1px solid var(--border)">'+objSinader.nombre+'</td>';
       mesesToShow.forEach(function(m){
-        var r = objBySucMes[suc+'|'+m+'|Declarar mensualmente en SINADER'];
+        var r = objBySucMes[suc+'|'+m+'|'+objSinader.nombre];
         if(!r){sinCells+='<td style="padding:9px 12px;text-align:center;border-left:1px solid var(--border);color:var(--text-muted)">--</td>';return;}
         sinCells += estadoCell(r.estado, r.detalle);
       });
       trSin.innerHTML=sinCells; tbody.appendChild(trSin);
+    }
 
+    // Fila KPI costo e ingreso (solo Abastible)
+    var objKpi = (emp.objetivos || []).find(function(o){ return o.tipo === 'kpi_costo'; });
+    if (objKpi) {
       var trKpi=document.createElement('tr');
       trKpi.style.borderTop='1px solid var(--border)';
       var kpiCells='<td style="padding:9px 12px;font-weight:500;color:var(--text);border-right:1px solid var(--border)">KPI costo e ingreso</td>';
       mesesToShow.forEach(function(m){
-        var r = objBySucMes[suc+'|'+m+'|KPI costo e ingreso (ingresos > 0)'];
+        var r = objBySucMes[suc+'|'+m+'|'+objKpi.nombre];
         if(!r){kpiCells+='<td style="padding:9px 12px;text-align:center;border-left:1px solid var(--border);color:var(--text-muted)">--</td>';return;}
         kpiCells += estadoCell(r.estado, r.detalle);
       });
