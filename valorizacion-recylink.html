@@ -382,6 +382,7 @@ function initEmpresaPills() {
       document.querySelectorAll('.empresa-pill').forEach(function(p){ p.classList.remove('active'); });
       pill.classList.add('active');
       resetData();
+      loadFromSheets();
     });
     container.appendChild(pill);
   });
@@ -1664,6 +1665,7 @@ function sync(tipo) {
 document.addEventListener('DOMContentLoaded',function(){
   initEmpresaPills();
   renderTrazHeaders();
+  loadFromSheets();
 });
 </script>
 </body>
