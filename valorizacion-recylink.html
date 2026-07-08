@@ -1,0 +1,1670 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Valorización Recylink</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f5f5f3;--surface:#fff;--surface2:#f0efed;
+  --border:#e2e0db;--border-strong:#c8c6c0;
+  --text:#1a1a18;--text-sec:#52514e;--text-muted:#908e89;
+  --accent:#175CD3;
+  --green:#0ca30c;--green-bg:#eaf3de;--green-text:#27500a;
+  --yellow:#d4900a;--yellow-bg:#fef3c7;--yellow-text:#92400e;
+  --red:#dc2626;--red-bg:#fef2f2;--red-text:#7f1d1d;
+  --radius:8px;--recylink-blue:#0F3D6E;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+.app{max-width:1140px;margin:0 auto;padding:24px 20px}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:12px;flex-wrap:wrap}
+.header-left{display:flex;align-items:center;gap:12px}
+.logo{width:36px;height:36px;background:var(--recylink-blue);border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:14px;flex-shrink:0}
+.app-title{font-size:17px;font-weight:600}
+.app-sub{font-size:12px;color:var(--text-muted)}
+.empresa-bar{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.empresa-bar label{font-size:12px;font-weight:600;color:var(--text-sec);text-transform:uppercase;letter-spacing:0.04em}
+.empresa-pills{display:flex;gap:8px;flex-wrap:wrap}
+.empresa-pill{padding:6px 14px;border-radius:20px;font-size:13px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);background:var(--surface2);color:var(--text-sec);transition:all 0.15s}
+.empresa-pill.active{border-color:var(--accent);background:#eff4ff;color:var(--accent)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius);font-size:13px;font-weight:500;cursor:pointer;border:none;transition:opacity 0.15s}
+.btn:disabled{opacity:.45;cursor:default}
+.btn-primary{background:var(--accent);color:white}
+.btn-green{background:var(--green);color:white}
+.btn-ghost{background:var(--surface);color:var(--text-sec);border:1px solid var(--border-strong)}
+.sync-bar{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:20px}
+.sync-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.sync-status{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-sec)}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--border-strong)}
+.dot.connected{background:var(--green)}
+.dot.syncing{background:var(--yellow);animation:blink 1s infinite}
+.dot.error{background:var(--red)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.sync-btns{display:flex;gap:8px;flex-wrap:wrap}
+.sync-log{font-size:11px;color:var(--text-muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:none;line-height:1.8}
+.tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:20px}
+.tab{padding:9px 18px;font-size:13px;font-weight:500;cursor:pointer;color:var(--text-muted);border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;transition:color 0.15s}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.section{display:none}
+.section.active{display:block}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px}
+.metric{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.metric-label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+.metric-val{font-size:22px;font-weight:600}
+.metric-val.good{color:var(--green)}
+.metric-val.warn{color:var(--yellow)}
+.metric-val.bad{color:var(--red)}
+.filters{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.filters label{font-size:12px;color:var(--text-sec)}
+.filters select{font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text)}
+.chart-wrap{position:relative;width:100%;height:300px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:20px}
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{background:var(--surface2);padding:10px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border);white-space:nowrap}
+tbody td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--text)}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--surface2)}
+.pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.pill-good{background:var(--green-bg);color:var(--green-text)}
+.pill-warn{background:var(--yellow-bg);color:var(--yellow-text)}
+.pill-bad{background:var(--red-bg);color:var(--red-text)}
+.pill-gray{background:var(--surface2);color:var(--text-muted)}
+.empty{text-align:center;padding:48px 24px;color:var(--text-muted)}
+.empty-icon{font-size:40px;margin-bottom:12px}
+.empty h3{font-size:15px;font-weight:500;color:var(--text-sec);margin-bottom:6px}
+.empty p{font-size:13px}
+.section-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.section-title{font-size:14px;font-weight:600}
+#toast{position:fixed;bottom:20px;right:20px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-size:13px;color:var(--text);box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:9999;transform:translateY(80px);opacity:0;transition:all .25s;max-width:340px}
+#toast.show{transform:translateY(0);opacity:1}
+</style>
+</head>
+<body>
+<div class="app">
+  <div id="toast"></div>
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">R</div>
+      <div>
+        <div class="app-title">Valorización por sucursal</div>
+        <div class="app-sub" id="empresa-sub">Selecciona una empresa para comenzar</div>
+      </div>
+    </div>
+    <label style="cursor:pointer">
+      <span class="btn btn-primary">&#8593; Cargar Excel</span>
+      <input type="file" id="file-input" accept=".xlsx,.xls" style="display:none">
+    </label>
+  </div>
+
+  <div class="empresa-bar">
+    <label>Empresa</label>
+    <div class="empresa-pills" id="empresa-pills"></div>
+  </div>
+
+  <div class="sync-bar">
+    <div class="sync-row">
+      <div class="sync-status">
+        <div class="dot" id="sync-dot"></div>
+        <span id="sync-msg">Selecciona una empresa y carga un Excel</span>
+      </div>
+      <div class="sync-btns">
+        <button class="btn btn-ghost" id="btn-load-sheets">&#8595; Cargar desde Sheets</button>
+      </div>
+    </div>
+    <div class="sync-log" id="sync-log"></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="val">Valorizacion</button>
+    <button class="tab" data-tab="traz">Trazabilidad</button>
+    <button class="tab" data-tab="obj">Objetivos</button>
+  </div>
+
+  <div id="tab-val" class="section active">
+    <div id="val-empty" class="empty">
+      <div class="empty-icon">&#128202;</div>
+      <h3>Sin datos</h3><p>Selecciona una empresa y carga un Excel de trazabilidad</p>
+    </div>
+    <div id="val-content" style="display:none">
+      <div class="filters">
+        <label>Sucursal</label><select id="f-suc"></select>
+        <label>Mes</label><select id="f-mes"></select>
+      </div>
+      <div class="metrics" id="metrics"></div>
+      <div class="chart-wrap"><canvas id="val-chart"></canvas></div>
+      <div class="table-wrap">
+        <table><thead><tr><th>Sucursal</th><th>Mes</th><th>Total (kg)</th><th>Valorizado (kg)</th><th>% Mes</th><th>% Acumulado</th></tr></thead>
+        <tbody id="val-tbody"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-traz" class="section">
+    <div id="traz-empty" class="empty">
+      <div class="empty-icon">&#128193;</div><h3>Sin datos</h3><p>Selecciona una empresa y carga un Excel</p>
+    </div>
+    <div id="traz-content" style="display:none">
+      <div class="filters">
+        <label>Sucursal</label><select id="f-traz-suc"></select>
+        <label>Mes</label><select id="f-traz-mes"></select>
+      </div>
+      <div class="table-wrap">
+        <table><thead id="traz-thead"></thead><tbody id="traz-tbody"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-obj" class="section">
+    <div id="obj-empty" class="empty">
+      <div class="empty-icon">&#127919;</div><h3>Sin datos</h3><p>Selecciona una empresa y carga un Excel</p>
+    </div>
+    <div id="obj-content" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div class="filters" style="margin-bottom:0">
+          <label>Sucursal</label><select id="f-obj-suc"></select>
+          <label>Mes</label><select id="f-obj-mes"></select>
+        </div>
+        <button class="btn btn-ghost" id="btn-editar-metas" style="display:none">&#9998; Editar metas</button>
+      </div>
+      <div id="metas-form" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <span style="font-size:14px;font-weight:600;color:var(--text)">Metas de valorización 2026</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost" id="btn-cancelar-metas">Cancelar</button>
+            <button class="btn btn-primary" id="btn-guardar-metas">Guardar</button>
+          </div>
+        </div>
+        <div id="metas-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px"></div>
+      </div>
+      <div id="obj-grid"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+var EMPRESAS = {
+  copec: {
+    nombre: 'Copec',
+    scriptUrl: 'https://script.google.com/macros/s/AKfycbxnmprhhBj6DRKMxze6DU5H8P9CC62MGm0iQgMnzE8f3bA7laxwktefGewQg5lp2o49/exec',
+    prefix: 'copec',
+    trazCols: [
+      {header:'Sucursal',key:'suc'},{header:'Mes',key:'mes'},{header:'Residuo',key:'residuo'},
+      {header:'Cod. LER',key:'ler'},{header:'Imp.',key:'imp'},{header:'Cert. trat.',key:'cert'},
+      {header:'Factura',key:'factura'},{header:'Cert. decl.',key:'decl'},
+      {header:'Transportista',key:'transp'},{header:'Disp. final',key:'disp'}
+    ],
+    trazDocsCompletos: ['transp','disp'],
+    trazDocsInfo: ['cert','factura','decl'], // informativos, no afectan % trazabilidad
+    objetivos: [
+      {id:'trazabilidad', nombre:'100% trazabilidad', tipo:'trazabilidad'}
+    ]
+  },
+  abastible: {
+    nombre: 'Abastible',
+    scriptUrl: 'https://script.google.com/macros/s/AKfycbzGG_DqA-CcJM8VJ6xq4Rai693desNOMAZO-MeYhdkJWFtZwnPnJ4AVV33q56fuyaMX/exec',
+    prefix: 'abastible',
+    trazCols: [
+      {header:'Sucursal',key:'suc'},{header:'Mes',key:'mes'},{header:'Residuo',key:'residuo'},
+      {header:'Transportista (nombre)',key:'transpNombre'},{header:'Cod. LER',key:'ler'},
+      {header:'Imp.',key:'imp'},{header:'Cert. trat.',key:'cert'},{header:'Factura',key:'factura'},{header:'Cert. decl.',key:'decl'},
+      {header:'Transportista',key:'transp'},{header:'Disp. final',key:'disp'}
+    ],
+    trazDocsCompletos: ['transp','disp'],
+    trazDocsInfo: ['cert','factura','decl'],
+    objetivos: [
+      {id:'trazabilidad', nombre:'100% trazabilidad',                 tipo:'trazabilidad'},
+      {id:'sinader',      nombre:'Declarar mensualmente en SINADER',   tipo:'sinader'},
+      {id:'kpi_costo',    nombre:'KPI costo e ingreso (ingresos > 0)', tipo:'kpi_costo'}
+    ]
+  },
+  socovesa: {
+    nombre: 'Socovesa',
+    scriptUrl: 'https://script.google.com/macros/s/AKfycbx5mKQ873Ob_3Yd4n1kUI5imxEpXO5UzllhMpYGCoIBFHwBKSI9Moct7p9SYuEL9znM/exec',
+    prefix: 'socovesa',
+    trazCols: [
+      {header:'Sucursal',key:'suc'},{header:'Mes',key:'mes'},{header:'Residuo',key:'residuo'},
+      {header:'Transportista (nombre)',key:'transpNombre'},{header:'Cod. LER',key:'ler'},
+      {header:'Imp.',key:'imp'},{header:'Cert. trat.',key:'cert'},{header:'Cert. decl.',key:'decl'},
+      {header:'Transportista',key:'transp'},{header:'Disp. final',key:'disp'}
+    ],
+    trazDocsCompletos: ['cert','transp','disp'],
+    objetivos: [
+      {id:'trazabilidad', nombre:'100% trazabilidad',             tipo:'trazabilidad'},
+      {id:'valorizar',    nombre:'Valorizar al menos un residuo', tipo:'valorizar_residuo'},
+      {id:'sinader',      nombre:'Declarar mensualmente en SINADER', tipo:'sinader'},
+      {id:'reg_valorizar',nombre:'Registrar residuos a valorizar', tipo:'reg_valorizar'},
+      {id:'respel',       nombre:'Registrar retiros de Respel',   tipo:'respel'}
+    ]
+  }
+};
+
+var MES_L = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+var MESES_ES = {1:'Enero',2:'Febrero',3:'Marzo',4:'Abril',5:'Mayo',6:'Junio',7:'Julio',8:'Agosto',9:'Septiembre',10:'Octubre',11:'Noviembre',12:'Diciembre'};
+var VALORIZADOS_LIST = ['Reciclaje','Coprocesamiento (Valorizado)','Reutilizacion','Reutilización','Compostaje','Donaciones','Vermicompostaje','Recauchaje','Gestion Interna','Gestión Interna'];
+
+function isValorizado(trat) {
+  if (!trat) return false;
+  var t = (trat+'').trim().toLowerCase()
+    .replace(/\u00f3/g,'o').replace(/\u00f3/g,'o')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  return VALORIZADOS_LIST.some(function(v){
+    return v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'') === t;
+  });
+}
+var DOC_LABELS = {cert:'cert. tratamiento',factura:'factura',decl:'cert. declaracion',transp:'transportista',disp:'disposicion final'};
+var OBJ_ANUALES = {valorizar_residuo:1,reg_valorizar:1,respel:1};
+
+var ABASTIBLE_METAS = {
+  'Planta Concón': 15,
+  'Planta Talca': 30,
+  'Planta Lenga': 30,
+  'Planta Osorno': 30,
+  'Oficina Central': 30
+};
+var COPEC_METAS_DEFAULT = {
+  'CDC Maipú': 90,
+  'PP Bluemax': 90,
+  'PP Planta Lubricantes Quintero': 90,
+  'Planta Arica': 30,
+  'Planta Chacabuco': 30,
+  'Planta Chillán': 60,
+  'Planta Iquique': 30,
+  'Planta Caldera': 30,
+  'Planta Mejillones': 80,
+  'Planta Concón': 80,
+  'Planta Terminal de Productos Importados (TPI)': 45,
+  'Planta Guayacán': 80,
+  'Planta Maipú': 80,
+  'Planta Pureo': 45,
+  'Planta SIAV': 30,
+  'CDL 1229 - Punta Arenas': 15,
+  'CDL 1220 - Copiapó': 15,
+  'CDL 1218 - Antofagasta Granel': 15,
+  'CDL 1219 - Antofagasta La Negra': 15,
+  'CDL 1225 - Puerto Montt': 15,
+  'CDL 1226 - Coyhaique': 15,
+  'CDL 1217 - Iquique': 15,
+  'CDL 1224 - Concepción': 15,
+  'CDL 1240 - Santiago': 15
+};
+
+function getCopecMetas() {
+  try {
+    var saved = localStorage.getItem('copec_metas');
+    return saved ? JSON.parse(saved) : Object.assign({}, COPEC_METAS_DEFAULT);
+  } catch(e) { return Object.assign({}, COPEC_METAS_DEFAULT); }
+}
+function saveCopecMetas(metas) {
+  localStorage.setItem('copec_metas', JSON.stringify(metas));
+}
+
+// Normalización de nombres de sucursal
+var SUC_ALIAS = {
+  'Olimpia III': 'Olimpia III - Socovesa Sur'
+};
+
+var empresaActual = 'copec';
+var valMatrix = {}, trazRows = [], sucursales = [], mesesDisp = [], rawRows = [];
+var chartInst = null;
+var sheetsObjetivosData = null;
+
+function fmt(n,dec) { dec = dec||1; return n.toFixed(dec).replace('.',','); }
+function fmtPct(n) { return fmt(n)+'%'; }
+function fmtT(n) { return fmt(n)+'t'; }
+
+var SUCURSALES_EXCLUIDAS = ['Edificio Eliodoro Yañez','Edificio Eliodoro Yanez'];
+
+function isSucExcluida(suc) {
+  return SUCURSALES_EXCLUIDAS.some(function(e){ return suc.toLowerCase().indexOf(e.toLowerCase())>=0; });
+}
+
+function toast(msg, type) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.borderLeftWidth = '3px';
+  t.style.borderLeftColor = type==='err' ? '#dc2626' : '#0ca30c';
+  t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 3500);
+}
+
+function sucId(suc) {
+  return EMPRESAS[empresaActual].prefix+'_'+suc.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'').slice(0,24);
+}
+
+function toYM(val) {
+  if (!val) return null;
+  if (val instanceof Date) return val.toISOString().slice(0,7);
+  if (typeof val === 'number') return new Date((val-25569)*86400*1000).toISOString().slice(0,7);
+  if (typeof val === 'string' && val.length >= 7) return val.slice(0,7);
+  return null;
+}
+
+function populateSel(id, items, allLabel) {
+  var sel = document.getElementById(id);
+  sel.innerHTML = '';
+  if (allLabel) {
+    var opt = document.createElement('option');
+    opt.value = 'all'; opt.textContent = allLabel;
+    sel.appendChild(opt);
+  }
+  items.forEach(function(item) {
+    var o = document.createElement('option');
+    if (typeof item === 'string') { o.value = item; o.textContent = item; }
+    else { o.value = item.v; o.textContent = item.l; }
+    sel.appendChild(o);
+  });
+}
+
+// Tabs
+document.querySelectorAll('.tab').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.tab').forEach(function(b){ b.classList.remove('active'); });
+    document.querySelectorAll('.section').forEach(function(s){ s.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+// Empresa pills
+function initEmpresaPills() {
+  var container = document.getElementById('empresa-pills');
+  container.innerHTML = '';
+  Object.keys(EMPRESAS).forEach(function(key) {
+    var emp = EMPRESAS[key];
+    var pill = document.createElement('button');
+    pill.className = 'empresa-pill'+(key===empresaActual?' active':'');
+    pill.textContent = emp.nombre;
+    pill.addEventListener('click', function() {
+      empresaActual = key;
+      document.querySelectorAll('.empresa-pill').forEach(function(p){ p.classList.remove('active'); });
+      pill.classList.add('active');
+      resetData();
+    });
+    container.appendChild(pill);
+  });
+}
+
+function resetData() {
+  valMatrix={}; trazRows=[]; sucursales=[]; mesesDisp=[]; rawRows=[]; sheetsObjetivosData=null;
+  if (chartInst) { chartInst.destroy(); chartInst=null; }
+  // Remove grouped val view if exists
+  var grouped = document.getElementById('val-grouped');
+  if (grouped) grouped.remove();
+  document.getElementById('val-tbody').innerHTML='';
+  document.getElementById('traz-tbody').innerHTML='';
+  document.getElementById('obj-grid').innerHTML='';
+  document.getElementById('val-content').style.display='none';
+  ['val-empty','traz-empty'].forEach(function(id){ document.getElementById(id).style.display=''; });
+  ['traz-content'].forEach(function(id){ document.getElementById(id).style.display='none'; });
+  // For objetivos: Copec always shows content (metas), others show empty
+  var emp = EMPRESAS[empresaActual];
+  var hasObj = (emp && emp.objetivos!==null) || empresaActual==='copec' || empresaActual==='abastible';
+  document.getElementById('obj-empty').style.display = hasObj ? 'none' : '';
+  document.getElementById('obj-content').style.display = hasObj ? 'block' : 'none';
+  document.getElementById('btn-editar-metas').style.display = empresaActual==='copec' ? 'inline-flex' : 'none';
+  document.getElementById('obj-grid').innerHTML = '';
+  renderCopecObjetivos();
+  
+  document.getElementById('sync-dot').className='dot';
+  document.getElementById('sync-msg').textContent='Carga un Excel para habilitar la sincronizacion';
+  document.getElementById('empresa-sub').textContent=EMPRESAS[empresaActual].nombre+' — sin datos cargados';
+  renderTrazHeaders();
+}
+
+// File input
+document.getElementById('file-input').addEventListener('change', function(e) {
+  var f = e.target.files[0]; if (!f) return;
+  e.target.value = '';
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var wb = XLSX.read(ev.target.result, {type:'array',cellDates:true});
+    var ws = wb.Sheets[wb.SheetNames[0]];
+    processData(XLSX.utils.sheet_to_json(ws,{defval:''}), f.name);
+  };
+  reader.readAsArrayBuffer(f);
+});
+
+function processData(rows, fname) {
+  rawRows = rows;
+  valMatrix = {};
+  var trazMap = {};
+  var emp = EMPRESAS[empresaActual];
+
+  rows.forEach(function(r) {
+    var suc = r['Sucursal']||'';
+    // Normalizar nombre de sucursal
+    if (SUC_ALIAS[suc]) suc = SUC_ALIAS[suc];
+    var mes = toYM(r['Fecha de Operacion']||r['Fecha de Operación']||r['Fecha de operación']||'');
+    if (!suc||!mes) return;
+    var kg = parseFloat(r['Control de Peso (Kg)'])||0;
+    var trat = r['Tipo de Tratamiento']||'';
+    var residuo = r['Residuo']||'';
+    var ler = (r['Codigo LER']||r['Código LER']||'')+'';
+    var estado = (r['Estado']||r['estado']||'').toLowerCase().trim();
+
+    if (!valMatrix[suc]) valMatrix[suc]={};
+    if (!valMatrix[suc][mes]) valMatrix[suc][mes]={total:0,val:0};
+    valMatrix[suc][mes].total+=kg;
+    if (isValorizado(trat)) valMatrix[suc][mes].val+=kg;
+
+    var key = suc+'||'+mes+'||'+residuo;
+    // Para trazabilidad y objetivos solo considerar operaciones finalizadas
+    if (estado !== 'finalizada' && estado !== 'finalizado') return;
+    if (!trazMap[key]) {
+      var tn = (r['Razon Social Empresa Transportista']||r['Razón Social Empresa Transportista']||r['Nombre de Fantasía Empresa Transportista']||'').trim()
+            || (r['RUT de Empresa Transportista']||'').trim();
+      trazMap[key]={suc:suc,mes:mes,residuo:residuo,ler:ler,transpNombre:tn,imp:0,cert:0,factura:0,decl:0,transp:0,disp:0,costoTotal:0,tieneIngreso:0};
+    }
+    var g = trazMap[key];
+    g.imp++;
+    if (r['(D) Certificado de Tratamiento']==='Si') g.cert++;
+    if (r['(D) Factura de Compra']==='Si') g.factura++;
+    if (r['(D) Declaracion Mensual SINADER']==='Si'||r['(D) Declaración Mensual SINADER']==='Si') g.decl++;
+    if ((r['RUT de Empresa Transportista']+'').trim()) g.transp++;
+    if ((r['RUT de Destinatario']+'').trim()) g.disp++;
+    // KPI costo: sumar costos y contar si hay ingreso (precio venta > 0)
+    var costo = parseFloat(r['Total Costo Neto de Transporte'])||0;
+    var ingreso = parseFloat(r['Precio por Venta de Residuo'])||0;
+    g.costoTotal += costo;
+    if (ingreso > 0) g.tieneIngreso++;
+  });
+
+  trazRows = Object.values(trazMap).sort(function(a,b){ return a.mes.localeCompare(b.mes)||a.suc.localeCompare(b.suc); });
+  sucursales = Object.keys(valMatrix).sort();
+  mesesDisp = [];
+  var mesSet = {};
+  Object.values(valMatrix).forEach(function(m){ Object.keys(m).forEach(function(k){ mesSet[k]=1; }); });
+  mesesDisp = Object.keys(mesSet).sort();
+
+  var mesItems = mesesDisp.map(function(m){ return {v:m,l:MES_L[parseInt(m.slice(5))-1]+' '+m.slice(0,4)}; });
+  populateSel('f-suc', sucursales, 'Todas');
+  populateSel('f-mes', mesItems, 'Todos');
+  populateSel('f-traz-suc', sucursales, 'Todas');
+  populateSel('f-traz-mes', mesItems, 'Todos');
+  var sucObj = sucursales.filter(function(s){ return !isSucExcluida(s); });
+  populateSel('f-obj-suc', sucObj, 'Todas');
+  populateSel('f-obj-mes', mesItems, 'Todos');
+
+  document.getElementById('empresa-sub').textContent=EMPRESAS[empresaActual].nombre+' - '+rows.length+' operaciones - '+sucursales.length+' sucursales';
+  document.getElementById('val-empty').style.display='none';
+  document.getElementById('val-content').style.display='block';
+  document.getElementById('traz-empty').style.display='none';
+  document.getElementById('traz-content').style.display='block';
+  var hasObj = emp.objetivos!==null || empresaActual==='copec' || empresaActual==='abastible';
+  document.getElementById('obj-empty').style.display=hasObj?'none':'';
+  document.getElementById('obj-content').style.display=hasObj?'block':'none';
+  document.getElementById('btn-editar-metas').style.display=empresaActual==='copec'?'inline-flex':'none';
+
+  document.getElementById('sync-dot').className='dot syncing';
+  document.getElementById('sync-msg').textContent='Sincronizando con Google Sheets...';
+
+  // Renderizar objetivos con formato unificado
+  renderCopecObjetivos();
+
+  // Sincronizar las 3 hojas automáticamente
+  autoSync(rows).then(function() {
+    loadFromSheets();
+  });
+}
+
+function autoSync(rows) {
+  var emp = EMPRESAS[empresaActual];
+
+  // Preparar payload valorización
+  var filasVal = [];
+  sucursales.forEach(function(suc){
+    var id = sucId(suc);
+    var vals = mesesDisp.map(function(m){ var p=getPct(suc,m); return p!==null?parseFloat(p.toFixed(1))+'%':''; });
+    filasVal.push([id,suc,'% Real'].concat(vals));
+    filasVal.push([id,suc,'Meta %'].concat(mesesDisp.map(function(){return '';})));
+  });
+
+  // Preparar payload trazabilidad
+  var filasTraz = trazRows.map(function(r){
+    var row = [sucId(r.suc)];
+    emp.trazCols.forEach(function(col){
+      if(col.key==='mes') row.push(MESES_ES[parseInt(r.mes.slice(5))]);
+      else if(col.key==='suc') row.push(r.suc);
+      else row.push(r[col.key]!==undefined?r[col.key]:'');
+    });
+    return row;
+  });
+
+  // Preparar payload objetivos para Copec (trazabilidad)
+  var filasObj = [];
+  if (emp.objetivos) {
+    filasObj = calcObjetivos().map(function(r){
+      return [sucId(r.suc), r.suc, r.mes, r.obj, r.estado, r.detalle];
+    });
+  }
+
+  var log = document.getElementById('sync-log');
+  log.style.display = 'block';
+
+  function sendPayload(payload) {
+    return fetch(emp.scriptUrl, {
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+  }
+
+  return sendPayload({tipo:'valorizacion', meses:mesesDisp, filas:filasVal})
+    .then(function(){ return sendPayload({tipo:'trazabilidad', filas:filasTraz}); })
+    .then(function(){
+      if (filasObj.length) return sendPayload({tipo:'objetivos', filas:filasObj});
+    })
+    .then(function(){
+      var hora = new Date().toLocaleTimeString('es-CL');
+      log.innerHTML += 'Sincronizado - ' + hora + '<br>';
+      toast('Excel procesado y sincronizado con Sheets');
+    })
+    .catch(function(err){
+      toast('Error al sincronizar: '+err.message, 'err');
+    });
+}
+
+// Valorización
+function getPct(suc,mes){
+  var d=valMatrix[suc]&&valMatrix[suc][mes];
+  if(!d||d.total===0)return null;
+  if(d.fromSheets) return d.val; // val ya es el porcentaje
+  return d.val/d.total*100;
+}
+function getAcum(suc,upTo){
+  var tot=0,val=0;
+  var hasSheets=false;
+  Object.keys(valMatrix[suc]||{}).forEach(function(m){
+    if(m<=upTo){
+      var d=valMatrix[suc][m];
+      if(d.fromSheets){ hasSheets=true; tot+=100; val+=d.val; }
+      else { tot+=d.total; val+=d.val; }
+    }
+  });
+  return tot===0?null:val/tot*100;
+}
+
+function renderVal() {
+  var fS=document.getElementById('f-suc').value;
+  var fM=document.getElementById('f-mes').value;
+  var container=document.getElementById('val-tbody').closest('.table-wrap');
+  var parent = container.parentNode;
+
+  // Siempre eliminar el grouped anterior
+  var existing = parent.querySelector('#val-grouped');
+  if (existing) existing.remove();
+
+  var sucsToShow = fS==='all' ? sucursales : [fS];
+  var mesesToShow = fM==='all' ? mesesDisp : [fM];
+
+  var tKg=0,tVal=0;
+  sucursales.forEach(function(suc){
+    if (!valMatrix[suc]) return;
+    Object.keys(valMatrix[suc]).sort().forEach(function(mes){
+      var d=valMatrix[suc][mes]; tKg+=d.total; tVal+=d.val;
+    });
+  });
+  var pG=tKg>0?tVal/tKg*100:0;
+  var cls=pG>=50?'good':pG>=20?'warn':'bad';
+  document.getElementById('metrics').innerHTML='<div class="metric"><div class="metric-label">Sucursales</div><div class="metric-val">'+sucursales.length+'</div></div><div class="metric"><div class="metric-label">Total (kg)</div><div class="metric-val">'+fmtT(tKg/1000)+'</div></div><div class="metric"><div class="metric-label">Valorizado (kg)</div><div class="metric-val">'+fmtT(tVal/1000)+'</div></div><div class="metric"><div class="metric-label">% Valorizacion global</div><div class="metric-val '+cls+'">'+fmtPct(pG)+'</div></div>';
+
+  var wrap = document.createElement('div');
+  wrap.id = 'val-grouped';
+
+  var thBase='background:var(--surface2);padding:8px 12px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border);white-space:nowrap;';
+  var thFirst=thBase+'text-align:left;min-width:180px;';
+  var thCol=thBase+'text-align:center;border-left:1px solid var(--border);';
+  var valMetas = empresaActual === 'copec' ? getCopecMetas() : empresaActual === 'abastible' ? ABASTIBLE_METAS : {};
+
+  sucsToShow.forEach(function(suc) {
+    if (!valMatrix[suc]) return; // Sucursal solo en trazabilidad, no en valorización
+    var meta = valMetas[suc] !== undefined ? valMetas[suc] : null;
+    var acum = getAcum(suc, mesesToShow[mesesToShow.length-1]);
+
+    var header = document.createElement('div');
+    header.style.cssText='margin-bottom:10px;margin-top:24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap';
+    header.innerHTML='<div style="font-size:15px;font-weight:700;color:var(--text)">'+suc+'</div>'
+      +'<div style="display:flex;align-items:center;gap:10px;flex-shrink:0">'
+      +(acum!==null?'<span style="font-size:14px;font-weight:700;color:var(--text-sec)">'+fmtPct(acum)+' acum.</span>':'')
+      +'</div>';
+    wrap.appendChild(header);
+
+    var tableWrap=document.createElement('div');
+    tableWrap.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px;overflow-x:auto';
+
+    var colHeaders=mesesToShow.map(function(m){return '<th style="'+thCol+'">'+MES_L[parseInt(m.slice(5))-1]+'</th>';}).join('');
+    var table=document.createElement('table');
+    table.style.cssText='width:100%;border-collapse:collapse;font-size:13px';
+    table.innerHTML='<thead><tr><th style="'+thFirst+'">Indicador</th>'+colHeaders+'</tr></thead>';
+    var tbody=document.createElement('tbody');
+
+    // Fila Total (kg)
+    var trTot=document.createElement('tr');
+    var totCells='<td style="padding:9px 12px;font-weight:500;color:var(--text);border-right:1px solid var(--border)">Total (kg)</td>';
+    mesesToShow.forEach(function(m){
+      var d=valMatrix[suc]&&valMatrix[suc][m];
+      totCells+='<td style="padding:9px 12px;text-align:center;border-left:1px solid var(--border);color:var(--text-sec)">'+(d?d.total.toLocaleString('es-CL'):'--')+'</td>';
+    });
+    trTot.innerHTML=totCells; tbody.appendChild(trTot);
+
+    // Fila Valorizado (kg)
+    var trVal=document.createElement('tr');
+    trVal.style.borderTop='1px solid var(--border)';
+    var valCells='<td style="padding:9px 12px;font-weight:500;color:var(--text);border-right:1px solid var(--border)">Valorizado (kg)</td>';
+    mesesToShow.forEach(function(m){
+      var d=valMatrix[suc]&&valMatrix[suc][m];
+      valCells+='<td style="padding:9px 12px;text-align:center;border-left:1px solid var(--border);color:var(--text-sec)">'+(d?d.val.toLocaleString('es-CL'):'--')+'</td>';
+    });
+    trVal.innerHTML=valCells; tbody.appendChild(trVal);
+
+    // Fila % Mes
+    var trPct=document.createElement('tr');
+    trPct.style.borderTop='1px solid var(--border)';
+    var pctCells='<td style="padding:9px 12px;font-weight:500;color:var(--text);border-right:1px solid var(--border)">% Mes</td>';
+    mesesToShow.forEach(function(m){
+      var p=getPct(suc,m);
+      var color = p===null ? 'var(--text-muted)'
+        : meta!==null ? (p>=meta?'var(--green)':p>=meta*0.7?'var(--yellow)':'var(--red)')
+        : (p>=50?'var(--green)':p>=20?'var(--yellow)':'var(--red)');
+      var pillCls=p===null?'pill-gray':meta!==null?(p>=meta?'pill-good':p>=meta*0.7?'pill-warn':'pill-bad'):(p>=50?'pill-good':p>=20?'pill-warn':'pill-bad');
+      pctCells+='<td style="padding:9px 12px;text-align:center;border-left:1px solid var(--border)"><span class="pill '+pillCls+'">'+(p!==null?fmtPct(p):'--')+'</span></td>';
+    });
+    trPct.innerHTML=pctCells; tbody.appendChild(trPct);
+
+    // Fila % Acumulado
+    var trAcum=document.createElement('tr');
+    trAcum.style.borderTop='1px solid var(--border)';
+    var acumCells='<td style="padding:9px 12px;font-weight:500;color:var(--text);border-right:1px solid var(--border)">% Acumulado</td>';
+    mesesToShow.forEach(function(m){
+      var a=getAcum(suc,m);
+      var color=a===null?'var(--text-muted)'
+        :meta!==null?(a>=meta?'var(--green)':a>=meta*0.7?'var(--yellow)':'var(--red)')
+        :(a>=50?'var(--green)':a>=20?'var(--yellow)':'var(--red)');
+      acumCells+='<td style="padding:9px 12px;text-align:center;border-left:1px solid var(--border)">'+(a!==null?'<span style="color:'+color+'">'+fmtPct(a)+'</span>':'--')+'</td>';
+    });
+    trAcum.innerHTML=acumCells; tbody.appendChild(trAcum);
+
+    // Fila Meta (solo Copec)
+    if (empresaActual === 'copec') {
+      var metas = getCopecMetas();
+      var meta = metas[suc] !== undefined ? metas[suc] : null;
+      if (meta !== null) {
+        var trMetaV=document.createElement('tr');
+        trMetaV.style.borderTop='1px solid var(--border)';
+        var metaVCells='<td style="padding:9px 12px;color:var(--text-muted);border-right:1px solid var(--border)">Meta 2026</td>';
+        mesesToShow.forEach(function(){ metaVCells+='<td style="padding:9px 12px;text-align:center;border-left:1px solid var(--border);color:var(--text-muted)">'+meta+'%</td>'; });
+        trMetaV.innerHTML=metaVCells; tbody.appendChild(trMetaV);
+      }
+    }
+
+    table.appendChild(tbody);
+    tableWrap.appendChild(table);
+    wrap.appendChild(tableWrap);
+  });
+
+  container.style.display='none';
+  parent.appendChild(wrap);
+  // Also hide old table headers
+  document.getElementById('val-tbody').innerHTML='';
+}
+
+function renderChart() {
+  var fS=document.getElementById('f-suc').value;
+  var sucs=fS==='all'?sucursales.slice(0,8):[fS];
+  var colors=['#2a78d6','#1baf7a','#d4900a','#008300','#4a3aa7','#dc2626','#e87ba4','#eb6834'];
+  var datasets=sucs.map(function(suc,i){
+    return {
+      label:suc.replace('Planta ',''),
+      data:mesesDisp.map(function(m){var p=getPct(suc,m);return p!==null?parseFloat(p.toFixed(1)):null;}),
+      borderColor:colors[i%colors.length],backgroundColor:colors[i%colors.length]+'18',
+      borderWidth:2,pointRadius:4,spanGaps:false,tension:0.3
+    };
+  });
+  if(chartInst)chartInst.destroy();
+  chartInst=new Chart(document.getElementById('val-chart'),{
+    type:'line',data:{labels:mesesDisp.map(function(m){return MES_L[parseInt(m.slice(5))-1];}),datasets:datasets},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:datasets.length>1,position:'bottom',labels:{boxWidth:10,boxHeight:10,color:'#908e89',font:{size:11},padding:14}},
+        tooltip:{callbacks:{label:function(ctx){return ' '+ctx.dataset.label+': '+(ctx.parsed.y!==null?fmtPct(ctx.parsed.y):'--');}}}},
+      scales:{x:{grid:{color:'#e8e6e1'},ticks:{color:'#908e89',font:{size:11}}},
+        y:{min:0,max:100,grid:{color:'#e8e6e1'},ticks:{color:'#908e89',font:{size:11},callback:function(v){return v+'%';}}}}}
+  });
+}
+
+document.getElementById('f-suc').addEventListener('change',function(){renderVal();renderChart();});
+document.getElementById('f-mes').addEventListener('change',renderVal);
+
+// Trazabilidad
+function renderTrazHeaders() {
+  var emp=EMPRESAS[empresaActual];
+  var thead=document.getElementById('traz-thead');
+  thead.innerHTML='<tr>'+emp.trazCols.map(function(c){return '<th>'+c.header+'</th>';}).join('')+'</tr>';
+}
+
+function renderTraz() {
+  var fS=document.getElementById('f-traz-suc').value;
+  var fM=document.getElementById('f-traz-mes').value;
+  var emp=EMPRESAS[empresaActual];
+  var tbody=document.getElementById('traz-tbody');
+  tbody.innerHTML='';
+  trazRows.forEach(function(r){
+    if(fS!=='all'&&r.suc!==fS)return;
+    if(fM!=='all'&&r.mes!==fM)return;
+    function cell(v,tot){
+      if(tot===0)return '<td style="color:#908e89">--</td>';
+      var ok=v>=tot,warn=v>0;
+      var bg=ok?'#eaf3de':warn?'#fef3c7':'#fef2f2';
+      var color=ok?'#27500a':warn?'#92400e':'#7f1d1d';
+      return '<td><span style="background:'+bg+';color:'+color+';padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600">'+v+'/'+tot+'</span></td>';
+    }
+    var tr=document.createElement('tr');
+    var html='';
+    emp.trazCols.forEach(function(col){
+      if(col.key==='mes') html+='<td>'+MES_L[parseInt(r.mes.slice(5))-1]+'</td>';
+      else if(col.key==='suc') html+='<td style="font-size:12px">'+r.suc+'</td>';
+      else if(col.key==='residuo') html+='<td>'+(r.residuo||'--')+'</td>';
+      else if(col.key==='ler') html+='<td style="color:#908e89;font-size:11px">'+(r.ler||'--')+'</td>';
+      else if(col.key==='transpNombre') html+='<td style="font-size:12px">'+(r.transpNombre||'--')+'</td>';
+      else if(col.key==='imp') html+='<td style="font-weight:600">'+r.imp+'</td>';
+      else html+=cell(r[col.key]||0,r.imp);
+    });
+    tr.innerHTML=html;
+    tbody.appendChild(tr);
+  });
+}
+
+document.getElementById('f-traz-suc').addEventListener('change',renderTraz);
+document.getElementById('f-traz-mes').addEventListener('change',renderTraz);
+
+// Objetivos
+function calcObjetivos() {
+  var emp=EMPRESAS[empresaActual];
+  if(!emp.objetivos)return[];
+  var results=[];
+
+  // Solo operaciones finalizadas con nombre normalizado
+  var rowsFin = rawRows.filter(function(r){
+    var est = (r['Estado']||r['estado']||'').toLowerCase().trim();
+    return est === 'finalizada' || est === 'finalizado';
+  }).map(function(r){
+    var copy = Object.assign({}, r);
+    var s = copy['Sucursal']||'';
+    if (SUC_ALIAS[s]) copy['Sucursal'] = SUC_ALIAS[s];
+    return copy;
+  });
+
+  sucursales.forEach(function(suc){
+    var rowsSuc = rowsFin.filter(function(r){return r['Sucursal']===suc;});
+    if(!rowsSuc.length)return;
+
+    // Objetivos anuales
+    emp.objetivos.forEach(function(obj){
+      if(!OBJ_ANUALES[obj.tipo])return;
+      var estado='',detalle='';
+      if(obj.tipo==='valorizar_residuo'){
+        var res=[];
+        rowsSuc.forEach(function(r){if(isValorizado(r['Tipo de Tratamiento'])){var rv=r['Residuo'];if(rv&&res.indexOf(rv)<0)res.push(rv);}});
+        estado=res.length>0?'OK':'No';
+        detalle=res.length>0?res.join(', '):'No se encontraron residuos valorizados';
+      } else if(obj.tipo==='reg_valorizar'){
+        var tiene=rowsSuc.some(function(r){return isValorizado(r['Tipo de Tratamiento']);});
+        estado=tiene?'OK':'No';
+        detalle=tiene?'':'No hay residuos con tratamiento valorizable registrados';
+      } else if(obj.tipo==='respel'){
+        var respelRows=rowsSuc.filter(function(r){return (r['Residuo']+'').toLowerCase().indexOf('respel')>=0;});
+        estado=respelRows.length>0?respelRows.length+' retiro'+(respelRows.length!==1?'s':''):'No';
+        detalle=respelRows.length===0?'No se registraron retiros de Respel':'';
+      }
+      results.push({suc:suc,mes:'Anual',mesKey:'anual',obj:obj.nombre,estado:estado,detalle:detalle,anual:true});
+    });
+
+    // Objetivos mensuales
+    mesesDisp.forEach(function(mes){
+      var rowsSM=rowsFin.filter(function(r){return r['Sucursal']===suc&&toYM(r['Fecha de Operacion']||r['Fecha de Operación']||r['Fecha de operación']||'')===mes;});
+      if(!rowsSM.length)return;
+      var trazSM=trazRows.filter(function(r){return r.suc===suc&&r.mes===mes;});
+      var totalImp=trazSM.reduce(function(s,r){return s+r.imp;},0);
+
+      emp.objetivos.forEach(function(obj){
+        if(OBJ_ANUALES[obj.tipo])return;
+        var estado='',detalle='';
+        var mesLabel=MESES_ES[parseInt(mes.slice(5))];
+
+        if(obj.tipo==='trazabilidad'){
+          var docs=emp.trazDocsCompletos;
+          var docsExcDon={cert:1,transp:1,disp:1};
+          // Excepciones: orgánicos y CDL no requieren transportista ni disposición final
+          var esCDL = suc.toLowerCase().indexOf('cdl') === 0;
+          var docsExcEspecial = {transp:1, disp:1}; // docs que se excluyen para orgánicos y CDL
+          var completas=0;
+          trazSM.forEach(function(r){
+            var esOrganico = (r.residuo+'').toLowerCase().indexOf('orgán') >= 0 || (r.residuo+'').toLowerCase().indexOf('organico') >= 0;
+            var excluirTranspDisp = esCDL || esOrganico;
+            var donEnG=rowsFin.filter(function(rr){return rr['Sucursal']===r.suc&&toYM(rr['Fecha de Operacion']||rr['Fecha de Operación']||rr['Fecha de operación']||'')===r.mes&&rr['Residuo']===r.residuo&&rr['Tipo de Tratamiento']==='Donaciones';}).length;
+            var allOk=docs.every(function(d){
+              if(excluirTranspDisp && docsExcEspecial[d]) return true;
+              if(docsExcDon[d])return (r[d]+donEnG)>=r.imp;
+              return r[d]>=r.imp;
+            });
+            if(allOk)completas+=r.imp;
+          });
+          var pct=totalImp>0?completas/totalImp*100:0;
+          estado=fmtPct(pct);
+          if(totalImp>0){
+            var gapsPorRes={};
+            var okRes=[];
+            trazSM.forEach(function(r){
+              var esOrganico = (r.residuo+'').toLowerCase().indexOf('orgán') >= 0 || (r.residuo+'').toLowerCase().indexOf('organico') >= 0;
+              var excluirTranspDisp = esCDL || esOrganico;
+              var donEnG=rowsFin.filter(function(rr){return rr['Sucursal']===r.suc&&toYM(rr['Fecha de Operacion']||rr['Fecha de Operación']||rr['Fecha de operación']||'')===r.mes&&rr['Residuo']===r.residuo&&rr['Tipo de Tratamiento']==='Donaciones';}).length;
+              var resOk=docs.every(function(d){
+                if(excluirTranspDisp && docsExcEspecial[d]) return true;
+                if(docsExcDon[d])return (r[d]+donEnG)>=r.imp;
+                return r[d]>=r.imp;
+              });
+              if(resOk){
+                if(r.residuo) okRes.push(r.residuo);
+              } else {
+                docs.forEach(function(d){
+                  if(excluirTranspDisp && docsExcEspecial[d]) return;
+                  var falt=docsExcDon[d]?Math.max(0,r.imp-(r[d]+donEnG)):Math.max(0,r.imp-(r[d]||0));
+                  if(falt>0){
+                    var k=r.residuo||'Sin nombre';
+                    if(!gapsPorRes[k])gapsPorRes[k]=[];
+                    gapsPorRes[k].push(falt+' sin '+(DOC_LABELS[d]||d));
+                  }
+                });
+              }
+            });
+            var parts=[];
+            if(okRes.length>0) parts.push('<span style="color:var(--green)">✓ '+okRes.join(', ')+'</span>');
+            var gaps=Object.keys(gapsPorRes).map(function(res){return '<b>'+res+':</b> '+gapsPorRes[res].join(', ');});
+            if(gaps.length>0) parts=parts.concat(gaps);
+            detalle=parts.join('<br>');
+          }
+
+        } else if(obj.tipo==='sinader'){
+          var rowsSinDon=rowsSM.filter(function(r){return r['Tipo de Tratamiento']!=='Donaciones';});
+          var conDecl=rowsSinDon.filter(function(r){return r['(D) Declaracion Mensual SINADER']==='Si'||r['(D) Declaración Mensual SINADER']==='Si';}).length;
+          var total=rowsSinDon.length;
+          var pct2=total>0?conDecl/total*100:100;
+          estado=fmtPct(pct2);
+          if(pct2<100&&total>0){
+            var gapsSin={};
+            rowsSinDon.forEach(function(r){
+              var decl=r['(D) Declaracion Mensual SINADER']||r['(D) Declaración Mensual SINADER']||'';
+              if(decl!=='Si'){var res=r['Residuo']||'Sin nombre';gapsSin[res]=(gapsSin[res]||0)+1;}
+            });
+            detalle=Object.keys(gapsSin).map(function(res){return res+': '+gapsSin[res]+' sin declaracion SINADER';}).join(' | ');
+            var nDon=rowsSM.length-total;
+            if(nDon>0)detalle+=' ('+nDon+' donacion'+(nDon!==1?'es':'')+' excluida'+(nDon!==1?'s':'')+')';
+          }
+
+        } else if(obj.tipo==='kpi_costo'){
+          // KPI costo e ingreso: OK si hay costo de transporte O ingreso por venta (cualquiera > 0)
+          var conCostoOIngreso = trazSM.filter(function(r){ return (r.costoTotal||0) > 0 || r.tieneIngreso > 0; }).length;
+          var totalRes = trazSM.length;
+          if(totalRes > 0) {
+            var costoTotal = trazSM.reduce(function(s,r){return s+(r.costoTotal||0);},0);
+            if(conCostoOIngreso > 0) {
+              estado = 'OK';
+              detalle = conCostoOIngreso+' residuo'+(conCostoOIngreso!==1?'s':'')+' con costo o ingreso · Costo neto: $'+Math.round(costoTotal).toLocaleString('es-CL');
+            } else {
+              estado = 'No';
+              detalle = 'Sin costo ni ingreso registrado · Costo neto: $'+Math.round(costoTotal).toLocaleString('es-CL');
+            }
+          }
+        }
+
+        if(estado)results.push({suc:suc,mes:mesLabel,mesKey:mes,obj:obj.nombre,estado:estado,detalle:detalle,anual:false});
+
+        // Para Copec: agregar sección informativa de docs adicionales
+        if(obj.tipo==='trazabilidad' && emp.trazDocsInfo && emp.trazDocsInfo.length > 0) {
+          var infoLabels = {cert:'Cert. tratamiento',factura:'Factura',decl:'Cert. declaración'};
+          var infoParts = [];
+          emp.trazDocsInfo.forEach(function(d){
+            var total2 = trazSM.reduce(function(s,r){return s+r.imp;},0);
+            var con = trazSM.reduce(function(s,r){return s+(r[d]||0);},0);
+            if(total2>0) infoParts.push((infoLabels[d]||d)+': '+con+'/'+total2);
+          });
+          if(infoParts.length>0) {
+            results.push({suc:suc,mes:mesLabel,mesKey:mes,obj:'Documentos adicionales',estado:'',detalle:infoParts.join(' | '),anual:false,infoOnly:true});
+          }
+        }
+      });
+    });
+  });
+  return results;
+}
+
+function objColor(estado){
+  if(estado==='OK')return 'var(--green)';
+  if(estado==='No')return 'var(--red)';
+  var n=parseFloat((estado+'').replace(',','.').replace('%',''));
+  if(!isNaN(n)){return n>=100?'var(--green)':n>=60?'var(--yellow)':'var(--red)';}
+  return 'var(--green)';
+}
+function estadoCell(estado, detalle) {
+  if (!estado && !detalle) return '<td style="padding:9px 12px;border-left:1px solid var(--border);color:var(--text-muted)">--</td>';
+  if (!estado) return '<td style="padding:9px 12px;border-left:1px solid var(--border);color:var(--text-muted);font-size:11px">'+detalle+'</td>';
+  var color = objColor(estado);
+  var pctN = parseFloat((estado+'').replace(',','.').replace('%',''));
+  var hasBar = !isNaN(pctN) && estado!=='OK' && estado!=='No' && (estado+'').indexOf('retiro')<0;
+  var bar = hasBar
+    ? '<div style="margin-top:4px;background:var(--surface2);border-radius:3px;height:4px;overflow:hidden"><div style="width:'+Math.min(100,pctN).toFixed(0)+'%;height:4px;background:'+color+';border-radius:3px"></div></div>'
+    : '';
+  return '<td style="padding:9px 12px;border-left:1px solid var(--border);vertical-align:top">'
+    +'<span style="font-weight:700;color:'+color+'">'+estado+'</span>'
+    +bar
+    +(detalle?'<div style="font-size:10px;color:var(--text-muted);margin-top:3px;white-space:normal;line-height:1.6">'+detalle+'</div>':'')
+    +'</td>';
+}
+function isObjCumplido(estado){
+  if(estado==='OK')return true;
+  if(estado==='No')return false;
+  var n=parseFloat(estado.replace(',','.'));
+  return !isNaN(n)&&n>=100;
+}
+
+function makeTableSection(title, filas, cols) {
+  var wrap=document.createElement('div');
+  wrap.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:10px;overflow-x:auto';
+  var head=document.createElement('div');
+  head.style.cssText='padding:8px 14px;background:var(--surface2);border-bottom:1px solid var(--border)';
+  head.innerHTML='<span style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">'+title+'</span>';
+  wrap.appendChild(head);
+  var table=document.createElement('table');
+  table.style.cssText='width:100%;border-collapse:collapse;font-size:13px';
+  var thead=document.createElement('thead');
+  thead.innerHTML='<tr>'+cols.map(function(c){return '<th>'+c+'</th>';}).join('')+'</tr>';
+  table.appendChild(thead);
+  var tbody=document.createElement('tbody');
+  filas.forEach(function(r,i){
+    var color=objColor(r.estado);
+    var tr=document.createElement('tr');
+    if(i>0)tr.style.borderTop='1px solid var(--border)';
+    var cells='<td style="padding:9px 12px;font-weight:500;color:var(--text)">'+r.obj+'</td>';
+    if(cols.length>2){
+      // monthly: add mes column
+      cells+='<td style="padding:9px 12px;color:var(--text-sec)">'+r.mes+'</td>';
+    }
+    cells += estadoCell(r.estado, r.detalle);
+    tr.innerHTML=cells;
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  return wrap;
+}
+
+function renderObjetivos() {
+  var emp=EMPRESAS[empresaActual];
+  if(!emp.objetivos)return;
+  var fS=document.getElementById('f-obj-suc').value;
+  var fM=document.getElementById('f-obj-mes').value;
+  var grid=document.getElementById('obj-grid');
+  grid.innerHTML='';
+
+  var allResults=calcObjetivos().filter(function(r){
+    if(r.infoOnly) return false; // solo para Copec/Abastible
+    if(isSucExcluida(r.suc))return false;
+    if(fS!=='all'&&r.suc!==fS)return false;
+    if(!r.anual&&fM!=='all'&&r.mesKey!==fM)return false;
+    return true;
+  });
+
+  if(!allResults.length){
+    grid.innerHTML='<div class="empty" style="padding:32px"><div class="empty-icon">&#127919;</div><h3>Sin datos</h3></div>';
+    return;
+  }
+
+  // Group by sucursal
+  var bySuc={};
+  allResults.forEach(function(r){
+    if(!bySuc[r.suc])bySuc[r.suc]={anuales:[],mensuales:[]};
+    if(r.anual)bySuc[r.suc].anuales.push(r);
+    else bySuc[r.suc].mensuales.push(r);
+  });
+
+  Object.keys(bySuc).sort().forEach(function(suc){
+    var data=bySuc[suc];
+    var todasAuto=data.anuales.concat(data.mensuales);
+    var cumplidos=todasAuto.filter(function(r){return isObjCumplido(r.estado);}).length;
+    var pctG=todasAuto.length>0?cumplidos/todasAuto.length*100:0;
+    var colorG=pctG>=100?'var(--green)':pctG>=50?'var(--yellow)':'var(--red)';
+
+    var sucHeader=document.createElement('div');
+    sucHeader.style.cssText='margin-bottom:10px;margin-top:24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap';
+    sucHeader.innerHTML='<div style="font-size:15px;font-weight:700;color:var(--text)">'+suc+'</div>'
+      +'<div style="display:flex;align-items:center;gap:10px;flex-shrink:0">'
+      +'<div style="width:120px;background:var(--surface2);border-radius:4px;height:6px;overflow:hidden">'
+      +'<div style="width:'+pctG.toFixed(0)+'%;height:6px;border-radius:4px;background:'+colorG+';transition:width .5s"></div></div>'
+      +'<span style="font-size:14px;font-weight:700;color:'+colorG+'">'+fmtPct(pctG)+'</span>'
+      +'<span style="font-size:11px;color:var(--text-muted)">'+cumplidos+'/'+todasAuto.length+' objetivos</span></div>';
+    grid.appendChild(sucHeader);
+
+    if(data.anuales.length>0){
+      grid.appendChild(makeTableSection('Analisis anual', data.anuales, ['Objetivo','Estado','Detalle']));
+    }
+    if(data.mensuales.length>0){
+      // Sort by mes
+      data.mensuales.sort(function(a,b){return a.mesKey.localeCompare(b.mesKey);});
+      grid.appendChild(makeTableSection('Analisis mensual', data.mensuales, ['Objetivo','Mes','Estado','Detalle']));
+    }
+  });
+}
+
+document.getElementById('f-obj-suc').addEventListener('change', function() {
+  renderCopecObjetivos();
+});
+document.getElementById('f-obj-mes').addEventListener('change', function() {
+  renderCopecObjetivos();
+});
+
+// Cargar desde Sheets
+function loadFromSheets() {
+  var emp = EMPRESAS[empresaActual];
+  var dot = document.getElementById('sync-dot');
+  var msg = document.getElementById('sync-msg');
+  dot.className = 'dot syncing';
+  msg.textContent = 'Cargando datos desde Google Sheets...';
+  document.getElementById('btn-load-sheets').disabled = true;
+
+  fetch(emp.scriptUrl, {method:'GET', mode:'cors'})
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      if (!data) throw new Error('Sin datos en el Sheet');
+      // Normalizar arrays null a vacíos
+      data.valorizacion = data.valorizacion || [];
+      data.trazabilidad = data.trazabilidad || [];
+      data.objetivos = data.objetivos || [];
+      if (!data.valorizacion.length && !data.trazabilidad.length) {
+        throw new Error('Sin datos en el Sheet');
+      }
+      loadSheetsData(data);
+      dot.className = 'dot connected';
+      msg.textContent = 'Datos cargados desde Sheets';
+      toast('Datos cargados desde Google Sheets');
+    })
+    .catch(function(err) {
+      dot.className = 'dot error';
+      msg.textContent = 'Error: ' + err.message;
+      toast('Error: ' + err.message, 'err');
+      console.error('loadFromSheets error:', err);
+    })
+    .finally(function() {
+      document.getElementById('btn-load-sheets').disabled = false;
+    });
+}
+
+function loadSheetsData(data) {
+  try {
+  var emp = EMPRESAS[empresaActual];
+  var empresaAlCargar = empresaActual; // Guardar empresa actual para verificar después
+  valMatrix = {};
+  trazRows = [];
+  rawRows = [];
+
+  // Cargar valorización
+  // Formato: [empresa_id, sucursal, tipo, ene%, feb%, ...]
+  // Los meses están como columnas desde índice 3
+  var valMeses = [];
+  if (data.valorizacion && data.valorizacion.length > 0) {
+    data.valorizacion.forEach(function(row) {
+      if (!row) return;
+      var suc = (row['Sucursal']||row[1]||'')+'';
+      var tipo = (row['Tipo']||row[2]||'')+'';
+      if (!suc || tipo !== '% Real') return;
+      if (!valMatrix[suc]) valMatrix[suc] = {};
+      // Meses son columnas dinámicas — buscar por nombre de mes
+      Object.keys(MESES_ES).forEach(function(k) {
+        var mesLabel = MESES_ES[k];
+        var val = row[mesLabel];
+        if (val === '' || val === null || val === undefined) return;
+        var raw = (val+'').replace('%','').replace(',','.').trim();
+        var pct = parseFloat(raw);
+        if (isNaN(pct)) return;
+        // Si el string original tenía %, ya es un porcentaje directo
+        // Si es número entre 0 y 1 exclusive (no exactamente 1), multiplicar por 100
+        // Si es exactamente 0 o 1, puede ser decimal (0%/100%) o ya estar en %
+        // Usamos el string original para distinguir: "1" vs "100%" vs "1%"
+        var hasPercent = (val+'').indexOf('%') >= 0;
+        if (!hasPercent && pct > 0 && pct < 1) pct = pct * 100;
+        // Si es exactamente 1 sin %, asumir que es decimal = 100%
+        // Si es > 1 sin %, ya es porcentaje directo
+        else if (!hasPercent && pct === 1) pct = 100;
+        var mesKey = new Date().getFullYear() + '-' + String(k).padStart(2,'0');
+        if (!valMatrix[suc][mesKey]) valMatrix[suc][mesKey] = {total:100, val:pct, fromSheets:true};
+      });
+    });
+  }
+
+  // Cargar trazabilidad por nombre de columna
+  if (data.trazabilidad && data.trazabilidad.length > 0) {
+    data.trazabilidad.forEach(function(row) {
+      if (!row) return;
+      var r = {imp:0,cert:0,factura:0,decl:0,transp:0,disp:0,transpNombre:'',ler:''};
+      r.suc = (row['Sucursal']||'')+'';
+      var mesLabel = (row['Mes']||'')+'';
+      // Convertir mes label a mesKey YYYY-MM
+      var mesKey = null;
+      Object.keys(MESES_ES).forEach(function(k){
+        if (MESES_ES[k] === mesLabel) mesKey = new Date().getFullYear() + '-' + String(k).padStart(2,'0');
+      });
+      if (!mesKey || !r.suc) return;
+      r.mes = mesKey;
+      r.residuo = (row['Residuo']||row['residuo']||'')+'';
+      r.ler = (row['Cod. LER']||row['Código LER']||row['Codigo LER']||'')+'';
+      r.transpNombre = (row['Transportista (nombre)']||'')+'';
+      r.imp = parseInt(row['Imp.']||row['Importaciones']||0)||0;
+      r.cert = parseInt(row['Cert. trat.']||row['Cert. tratamiento']||0)||0;
+      r.factura = parseInt(row['Factura']||0)||0;
+      r.decl = parseInt(row['Cert. decl.']||row['Cert. declaracion']||row['Cert. declaración']||0)||0;
+      r.transp = parseInt(row['Transportista']||0)||0;
+      r.disp = parseInt(row['Disp. final']||row['Disposicion final']||0)||0;
+      trazRows.push(r);
+    });
+  }
+
+  sucursales = Object.keys(valMatrix).sort();
+  var mesSet = {};
+  Object.values(valMatrix).forEach(function(m){ if(m) Object.keys(m).forEach(function(k){ mesSet[k]=1; }); });
+  trazRows.forEach(function(r){
+    if(!r) return;
+    mesSet[r.mes]=1;
+    if (r.suc && sucursales.indexOf(r.suc)<0) sucursales.push(r.suc);
+  });
+  sucursales.sort();
+  mesesDisp = Object.keys(mesSet).sort();
+
+  if (!sucursales.length && !trazRows.length) {
+    toast('El Sheet no tiene datos aún', 'warn');
+    return;
+  }
+
+  var mesItems = mesesDisp.map(function(m){ return {v:m, l:MES_L[parseInt(m.slice(5))-1]+' '+m.slice(0,4)}; });
+  populateSel('f-suc', sucursales, 'Todas');
+  populateSel('f-mes', mesItems, 'Todos');
+  populateSel('f-traz-suc', sucursales, 'Todas');
+  populateSel('f-traz-mes', mesItems, 'Todos');
+
+  // Para objetivos, usar los nombres de sucursal que vienen del Sheet de Objetivos
+  var sucObj = sucursales.filter(function(s){ return !isSucExcluida(s); });
+  if (data.objetivos && data.objetivos.length > 0) {
+    var sucObjSet = {};
+    data.objetivos.forEach(function(r){
+      var s = (r['Sucursal']||r[1]||'')+'';
+      if (s && !isSucExcluida(s)) sucObjSet[s] = 1;
+    });
+    var sucObjFromSheet = Object.keys(sucObjSet).sort();
+    if (sucObjFromSheet.length > 0) sucObj = sucObjFromSheet;
+  }
+  populateSel('f-obj-suc', sucObj, 'Todas');
+  populateSel('f-obj-mes', mesItems, 'Todos');
+
+  document.getElementById('empresa-sub').textContent = emp.nombre + ' - cargado desde Sheets - ' + sucursales.length + ' sucursales';
+
+  // Verificar que la empresa no cambió durante la carga
+  if (empresaActual !== empresaAlCargar) return;
+
+  document.getElementById('val-empty').style.display = 'none';
+  document.getElementById('val-content').style.display = 'block';
+  document.getElementById('traz-empty').style.display = 'none';
+  document.getElementById('traz-content').style.display = 'block';
+  var hasObj = emp.objetivos !== null;
+  document.getElementById('obj-empty').style.display = hasObj ? 'none' : '';
+  document.getElementById('obj-content').style.display = hasObj || empresaActual === 'copec' || empresaActual === 'abastible' ? 'block' : 'none';
+  document.getElementById('obj-empty').style.display = (hasObj || empresaActual === 'copec' || empresaActual === 'abastible') ? 'none' : '';
+  document.getElementById('btn-editar-metas').style.display = empresaActual === 'copec' ? 'inline-flex' : 'none'; // Abastible no tiene metas editables
+
+
+  renderTrazHeaders(); renderVal(); renderChart(); renderTraz();
+
+  // Guardar objetivos del Sheet y renderizar formato unificado
+  if (data.objetivos && data.objetivos.length > 0) {
+    sheetsObjetivosData = data.objetivos;
+  }
+  renderCopecObjetivos();
+  } catch(err) {
+    console.error('Error en loadSheetsData:', err);
+    toast('Error al procesar datos: ' + err.message, 'err');
+  }
+}
+
+function renderObjetivosFromSheets(rows) {
+  // rows: [empresa_id, sucursal, mes, objetivo, estado, detalle]
+  var grid = document.getElementById('obj-grid');
+  grid.innerHTML = '';
+  var fS = document.getElementById('f-obj-suc').value;
+  var fM = document.getElementById('f-obj-mes').value;
+
+  var filtered = rows.filter(function(r) {
+    var suc = ((r['Sucursal']||r[1]||'')+'').trim();
+    var mes = (r['Mes']||r[2]||'')+'';
+    if (isSucExcluida(suc)) return false;
+    if (fS !== 'all' && suc !== fS.trim()) return false;
+    if (mes === 'Anual') return true;
+    if (fM !== 'all' && mes !== MESES_ES[parseInt(fM.slice(5))]) return false;
+    return true;
+  });
+
+  if (!filtered.length) {
+    grid.innerHTML = '<div class="empty" style="padding:32px"><div class="empty-icon">&#127919;</div><h3>Sin datos</h3></div>';
+    return;
+  }
+
+  var bySuc = {};
+  filtered.forEach(function(r) {
+    var suc = ((r['Sucursal']||r[1]||'')+'').trim();
+    var mes = (r['Mes']||r[2]||'')+'';
+    var obj = (r['Objetivo']||r[3]||'')+'';
+    var _cv = r['% cumplimiento']; var _c4 = r[4]; var estadoRaw = (_cv !== undefined && _cv !== null && _cv !== '' ? _cv : (_c4 !== undefined && _c4 !== null ? _c4 : ''))+'';
+    var estado = estadoRaw;
+    if (estadoRaw !== 'OK' && estadoRaw !== 'No') {
+      var cleaned2 = estadoRaw.replace('%','').replace(',','.').trim();
+      var n2 = parseFloat(cleaned2);
+      if (!isNaN(n2)) {
+        if (Number.isInteger(n2) && n2 > 1) {
+          estado = n2 + ' retiro' + (n2 !== 1 ? 's' : '');
+        } else {
+          estado = (n2 > 0 && n2 <= 1 ? n2 * 100 : n2).toFixed(1).replace('.',',') + '%';
+        }
+      }
+    }
+    var detalle = (r['Detalle']||r[5]||'')+'';
+    var anual = mes === 'Anual';
+    if (!bySuc[suc]) bySuc[suc] = {anuales:[], mensuales:[]};
+    var item = {suc:suc, mes:mes, obj:obj, estado:estado, detalle:detalle, anual:anual};
+    if (anual) bySuc[suc].anuales.push(item);
+    else bySuc[suc].mensuales.push(item);
+  });
+
+  function colorFor(estado) {
+    if (estado==='OK') return 'var(--green)';
+    if (estado==='No') return 'var(--red)';
+    var n = parseFloat((estado+'').replace(',','.').replace('%',''));
+    if (!isNaN(n)) return n>=100?'var(--green)':n>=60?'var(--yellow)':'var(--red)';
+    return 'var(--green)';
+  }
+
+  function isOk(estado) {
+    if (estado==='OK') return true;
+    if (estado==='No') return false;
+    var n = parseFloat((estado+'').replace(',','.').replace('%',''));
+    return !isNaN(n) && n>=100;
+  }
+
+  function makeTable(title, filas, cols) {
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:10px;overflow-x:auto';
+    var head = document.createElement('div');
+    head.style.cssText = 'padding:8px 14px;background:var(--surface2);border-bottom:1px solid var(--border)';
+    head.innerHTML = '<span style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">'+title+'</span>';
+    wrap.appendChild(head);
+    var table = document.createElement('table');
+    table.style.cssText = 'width:100%;border-collapse:collapse;font-size:13px';
+    var thead = document.createElement('thead');
+    thead.innerHTML = '<tr>'+cols.map(function(c){return '<th>'+c+'</th>';}).join('')+'</tr>';
+    table.appendChild(thead);
+    var tbody = document.createElement('tbody');
+    filas.forEach(function(r, i) {
+      var color = colorFor(r.estado);
+      var tr = document.createElement('tr');
+      if (i>0) tr.style.borderTop='1px solid var(--border)';
+      var cells = '<td style="padding:9px 12px;font-weight:500;color:var(--text)">'+r.obj+'</td>';
+      cells += estadoCell(r.estado, r.detalle);
+
+
+      tr.innerHTML = cells;
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    return wrap;
+  }
+
+  Object.keys(bySuc).sort().forEach(function(suc) {
+    var data = bySuc[suc];
+    var all = data.anuales.concat(data.mensuales);
+    var cumplidos = all.filter(function(r){return isOk(r.estado);}).length;
+    var pct = all.length > 0 ? cumplidos/all.length*100 : 0;
+    var color = pct>=100?'var(--green)':pct>=50?'var(--yellow)':'var(--red)';
+
+    var header = document.createElement('div');
+    header.style.cssText = 'margin-bottom:10px;margin-top:24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap';
+    header.innerHTML = '<div style="font-size:15px;font-weight:700;color:var(--text)">'+suc+'</div>'
+      +'<div style="display:flex;align-items:center;gap:10px;flex-shrink:0">'
+      +'<div style="width:120px;background:var(--surface2);border-radius:4px;height:6px;overflow:hidden">'
+      +'<div style="width:'+pct.toFixed(0)+'%;height:6px;border-radius:4px;background:'+color+'"></div></div>'
+      +'<span style="font-size:14px;font-weight:700;color:'+color+'">'+pct.toFixed(0)+'%</span>'
+      +'<span style="font-size:11px;color:var(--text-muted)">'+cumplidos+'/'+all.length+' objetivos</span></div>';
+    grid.appendChild(header);
+
+    if (data.anuales.length > 0) {
+      grid.appendChild(makeTable('Analisis anual', data.anuales, ['Objetivo','Estado','Detalle']));
+    }
+    if (data.mensuales.length > 0) {
+      grid.appendChild(makeTable('Analisis mensual', data.mensuales, ['Objetivo','Mes','Estado','Detalle']));
+    }
+  });
+}
+
+// Objetivos con formato de tabla por mes (columnas Ene, Feb...) para Copec y Abastible
+function renderCopecObjetivos() {
+  var fS = document.getElementById('f-obj-suc').value;
+  var fM = document.getElementById('f-obj-mes').value;
+  var grid = document.getElementById('obj-grid');
+  grid.innerHTML = '';
+  var emp = EMPRESAS[empresaActual];
+  var metas = empresaActual === 'copec' ? getCopecMetas() : (empresaActual === 'abastible' ? ABASTIBLE_METAS : {});
+  var sucsToShow = fS === 'all' ? sucursales : [fS];
+  var mesesToShow = fM === 'all' ? mesesDisp : [fM];
+
+  // Calcular todos los objetivos de una vez (desde Excel)
+  var allObjResults = rawRows.length > 0 ? calcObjetivos() : [];
+  var objBySucMes = {};
+  allObjResults.forEach(function(r){
+    objBySucMes[r.suc + '|' + r.mesKey + '|' + r.obj] = r;
+  });
+
+  // Si no hay Excel, usar datos del Sheet
+  if (rawRows.length === 0 && sheetsObjetivosData) {
+    sheetsObjetivosData.forEach(function(r) {
+      if (!r) return;
+      var suc2 = ((r['Sucursal']||r[1]||'')+'').trim();
+      var mes2 = (r['Mes']||r[2]||'')+'';
+      var obj2 = (r['Objetivo']||r[3]||'')+'';
+      if (!suc2 || !obj2 || mes2 === 'Anual') return;
+      var mesKey = null;
+      Object.keys(MESES_ES).forEach(function(k){
+        if (MESES_ES[k] === mes2) mesKey = new Date().getFullYear()+'-'+String(k).padStart(2,'0');
+      });
+      if (!mesKey) return;
+      var _cv = r['% cumplimiento']; var _c4 = r[4];
+      var estadoRaw = (_cv !== undefined && _cv !== null && _cv !== '' ? _cv : (_c4 !== undefined && _c4 !== null ? _c4 : ''))+'';
+      var estado = estadoRaw;
+      if (estadoRaw !== 'OK' && estadoRaw !== 'No') {
+        var cl = estadoRaw.replace('%','').replace(',','.').trim();
+        var n = parseFloat(cl);
+        if (!isNaN(n)) {
+          if (Number.isInteger(n) && n > 1) estado = n + ' retiro' + (n !== 1 ? 's' : '');
+          else estado = (n > 0 && n <= 1 ? n * 100 : n).toFixed(1).replace('.',',') + '%';
+        }
+      }
+      var detalle2 = (r['Detalle']||r[5]||'')+'';
+      objBySucMes[suc2+'|'+mesKey+'|'+obj2] = {suc:suc2, mesKey:mesKey, obj:obj2, estado:estado, detalle:detalle2};
+    });
+  }
+
+  var thBase='background:var(--surface2);padding:8px 12px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border);white-space:nowrap;';
+  var thFirst=thBase+'text-align:left;min-width:200px;';
+  var thCol=thBase+'text-align:center;border-left:1px solid var(--border);';
+
+  sucsToShow.forEach(function(suc) {
+    var meta = metas[suc] !== undefined ? metas[suc] : null;
+    var acum = getAcum(suc, mesesDisp[mesesDisp.length-1]);
+    var colorAcum = meta !== null
+      ? (acum !== null && acum >= meta ? 'var(--green)' : acum !== null && acum >= meta*0.7 ? 'var(--yellow)' : 'var(--red)')
+      : 'var(--text-muted)';
+
+    // % global: (trazabilidad acumulada + cumplimiento val) / 2
+    var trazScoreAll = 0, trazCountAll = 0;
+    mesesDisp.forEach(function(m) {
+      var r = objBySucMes[suc+'|'+m+'|100% trazabilidad'];
+      if (r && r.estado) {
+        var n = parseFloat((r.estado+'').replace(',','.').replace('%',''));
+        if (!isNaN(n)) { trazScoreAll += Math.min(100,n); trazCountAll++; }
+      }
+    });
+    var trazAcum = trazCountAll > 0 ? trazScoreAll/trazCountAll : null;
+    var valCumplimiento = (meta !== null && acum !== null) ? Math.min(100, acum/meta*100) : null;
+    var pctGlobal = 0;
+    if (trazAcum !== null && valCumplimiento !== null) pctGlobal = (trazAcum + valCumplimiento) / 2;
+    else if (trazAcum !== null) pctGlobal = trazAcum;
+    else if (valCumplimiento !== null) pctGlobal = valCumplimiento;
+    var colorGlobal = pctGlobal>=100?'var(--green)':pctGlobal>=60?'var(--yellow)':'var(--red)';
+
+    // Encabezado sucursal
+    var header = document.createElement('div');
+    header.style.cssText='margin-bottom:10px;margin-top:24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap';
+    header.innerHTML='<div style="font-size:15px;font-weight:700;color:var(--text)">'+suc+'</div>'
+      +'<div style="display:flex;align-items:center;gap:10px;flex-shrink:0">'
+      +'<div style="width:100px;background:var(--surface2);border-radius:4px;height:6px;overflow:hidden">'
+      +'<div style="width:'+pctGlobal.toFixed(0)+'%;height:6px;border-radius:4px;background:'+colorGlobal+'"></div></div>'
+      +'<span style="font-size:14px;font-weight:700;color:'+colorGlobal+'">'+pctGlobal.toFixed(0)+'%</span>'
+      +(meta!==null?'<span style="font-size:11px;color:var(--text-muted)">Meta val.: '+meta+'%</span>':'')
+      +(acum!==null?'<span style="font-size:13px;font-weight:600;color:'+colorAcum+'">'+fmtPct(acum)+' acum.</span>':'')
+      +'</div>';
+    grid.appendChild(header);
+
+    var tableWrap=document.createElement('div');
+    tableWrap.style.cssText='background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px;overflow-x:auto';
+    var colHeaders=mesesToShow.map(function(m){return '<th style="'+thCol+'">'+MES_L[parseInt(m.slice(5))-1]+'</th>';}).join('');
+    var table=document.createElement('table');
+    table.style.cssText='width:100%;border-collapse:collapse;font-size:13px';
+    table.innerHTML='<thead><tr><th style="'+thFirst+'">Objetivo</th>'+colHeaders+'</tr></thead>';
+    var tbody=document.createElement('tbody');
+
+    // Fila % Valorización real
+    var trReal=document.createElement('tr');
+    var realCells='<td style="padding:9px 12px;font-weight:500;color:var(--text);border-right:1px solid var(--border)">% Valorización real</td>';
+    mesesToShow.forEach(function(m){
+      var p=getPct(suc,m);
+      var color=p===null?'var(--text-muted)':meta!==null&&p>=meta?'var(--green)':meta!==null&&p>=meta*0.7?'var(--yellow)':'var(--red)';
+      realCells+='<td style="padding:9px 12px;text-align:center;border-left:1px solid var(--border)">'
+        +(p!==null?'<span style="font-weight:700;color:'+color+'">'+fmtPct(p)+'</span>':'<span style="color:var(--text-muted)">--</span>')+'</td>';
+    });
+    trReal.innerHTML=realCells; tbody.appendChild(trReal);
+
+    // Fila % Acumulado
+    var trAcum=document.createElement('tr');
+    trAcum.style.borderTop='1px solid var(--border)';
+    var acumCells='<td style="padding:9px 12px;color:var(--text-muted);border-right:1px solid var(--border)">% Acumulado</td>';
+    mesesToShow.forEach(function(m){
+      var a=getAcum(suc,m);
+      var color=a===null?'var(--text-muted)':meta!==null&&a>=meta?'var(--green)':meta!==null&&a>=meta*0.7?'var(--yellow)':'var(--red)';
+      acumCells+='<td style="padding:9px 12px;text-align:center;border-left:1px solid var(--border)">'+(a!==null?'<span style="color:'+color+'">'+fmtPct(a)+'</span>':'--')+'</td>';
+    });
+    trAcum.innerHTML=acumCells; tbody.appendChild(trAcum);
+
+    // Fila Meta
+    if (meta !== null) {
+      var trMeta=document.createElement('tr');
+      trMeta.style.borderTop='1px solid var(--border)';
+      var metaCells='<td style="padding:9px 12px;color:var(--text-muted);border-right:1px solid var(--border)">Meta 2026</td>';
+      mesesToShow.forEach(function(){ metaCells+='<td style="padding:9px 12px;text-align:center;border-left:1px solid var(--border);color:var(--text-muted)">'+meta+'%</td>'; });
+      trMeta.innerHTML=metaCells; tbody.appendChild(trMeta);
+    }
+
+    // Fila 100% Trazabilidad
+    var trTraz=document.createElement('tr');
+    trTraz.style.borderTop='2px solid var(--border)';
+    var trazCells='<td style="padding:9px 12px;font-weight:500;color:var(--text);border-right:1px solid var(--border)">100% trazabilidad<div style="font-size:10px;color:var(--text-muted);font-weight:400">Transportista + Disp. final</div></td>';
+    mesesToShow.forEach(function(m){
+      var r=objBySucMes[suc+'|'+m+'|100% trazabilidad'];
+      if(!r){trazCells+='<td style="padding:9px 12px;text-align:center;border-left:1px solid var(--border);color:var(--text-muted)">--</td>';return;}
+      trazCells += estadoCell(r.estado, r.detalle);
+    });
+    trTraz.innerHTML=trazCells; tbody.appendChild(trTraz);
+
+    // Fila documentos adicionales informativos
+    if (emp.trazDocsInfo && emp.trazDocsInfo.length > 0) {
+      var trDocs=document.createElement('tr');
+      trDocs.style.borderTop='1px solid var(--border)';
+      var docsCells='<td style="padding:9px 12px;color:var(--text-sec);border-right:1px solid var(--border)">Documentos adicionales<div style="font-size:10px;color:var(--text-muted)">Cert. trat. / Factura / Cert. decl.</div></td>';
+      mesesToShow.forEach(function(m){
+        var trazSM2 = trazRows.filter(function(tr2){return tr2.suc===suc&&tr2.mes===m;});
+        var infoDetalle = null;
+        if (trazSM2.length > 0) {
+          var parts = [];
+          trazSM2.forEach(function(tr2){
+            var imp = tr2.imp||0; if(!imp) return;
+            var cert = parseInt(tr2.cert)||0;
+            var fact = parseInt(tr2.factura)||0;
+            var decl = parseInt(tr2.decl)||0;
+            var res = tr2.residuo||'Sin nombre';
+            var docs = [];
+            if(cert>0) docs.push('Cert '+cert+'/'+imp);
+            if(fact>0) docs.push('Fact '+fact+'/'+imp);
+            if(decl>0) docs.push('Decl '+decl+'/'+imp);
+            if(docs.length>0) parts.push('<b>'+res+':</b> '+docs.join(', '));
+          });
+          if (parts.length > 0) infoDetalle = parts.join('<br>');
+        }
+        docsCells+='<td style="padding:9px 12px;text-align:left;border-left:1px solid var(--border)">'
+          +(infoDetalle?'<div style="font-size:10px;color:var(--text-sec);white-space:normal;line-height:1.8">'+infoDetalle+'</div>':'<span style="color:var(--text-muted)">--</span>')
+          +'</td>';
+      });
+      trDocs.innerHTML=docsCells; tbody.appendChild(trDocs);
+    }
+
+    // Filas adicionales para Abastible: SINADER y KPI
+    if (empresaActual === 'abastible') {
+      var trSin=document.createElement('tr');
+      trSin.style.borderTop='2px solid var(--border)';
+      var sinCells='<td style="padding:9px 12px;font-weight:500;color:var(--text);border-right:1px solid var(--border)">Declarar mensualmente en SINADER</td>';
+      mesesToShow.forEach(function(m){
+        var r = objBySucMes[suc+'|'+m+'|Declarar mensualmente en SINADER'];
+        if(!r){sinCells+='<td style="padding:9px 12px;text-align:center;border-left:1px solid var(--border);color:var(--text-muted)">--</td>';return;}
+        sinCells += estadoCell(r.estado, r.detalle);
+      });
+      trSin.innerHTML=sinCells; tbody.appendChild(trSin);
+
+      var trKpi=document.createElement('tr');
+      trKpi.style.borderTop='1px solid var(--border)';
+      var kpiCells='<td style="padding:9px 12px;font-weight:500;color:var(--text);border-right:1px solid var(--border)">KPI costo e ingreso</td>';
+      mesesToShow.forEach(function(m){
+        var r = objBySucMes[suc+'|'+m+'|KPI costo e ingreso (ingresos > 0)'];
+        if(!r){kpiCells+='<td style="padding:9px 12px;text-align:center;border-left:1px solid var(--border);color:var(--text-muted)">--</td>';return;}
+        kpiCells += estadoCell(r.estado, r.detalle);
+      });
+      trKpi.innerHTML=kpiCells; tbody.appendChild(trKpi);
+    }
+
+    table.appendChild(tbody);
+    tableWrap.appendChild(table);
+    grid.appendChild(tableWrap);
+  });
+}
+
+
+
+function openMetasEditor() {
+  var metas = getCopecMetas();
+  var grid = document.getElementById('metas-grid');
+  grid.innerHTML = '';
+  sucursales.forEach(function(suc) {
+    var val = metas[suc] !== undefined ? metas[suc] : (COPEC_METAS_DEFAULT[suc] || '');
+    var div = document.createElement('div');
+    div.style.cssText = 'display:flex;align-items:center;gap:8px';
+    div.innerHTML = '<label style="font-size:12px;color:var(--text-sec);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+suc+'">'+suc+'</label>'
+      + '<input type="number" min="0" max="100" value="'+val+'" data-suc="'+suc.replace(/"/g,'&quot;')+'" style="width:70px;padding:5px 8px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius);text-align:center"> <span style="font-size:12px;color:var(--text-muted)">%</span>';
+    grid.appendChild(div);
+  });
+  document.getElementById('metas-form').style.display = 'block';
+}
+
+document.getElementById('btn-editar-metas').addEventListener('click', openMetasEditor);
+document.getElementById('btn-cancelar-metas').addEventListener('click', function() {
+  document.getElementById('metas-form').style.display = 'none';
+});
+document.getElementById('btn-guardar-metas').addEventListener('click', function() {
+  var metas = getCopecMetas();
+  document.querySelectorAll('#metas-grid input[data-suc]').forEach(function(inp) {
+    var suc = inp.getAttribute('data-suc');
+    var val = parseFloat(inp.value);
+    if (!isNaN(val)) metas[suc] = val;
+  });
+  saveCopecMetas(metas);
+  document.getElementById('metas-form').style.display = 'none';
+  // Sincronizar metas al Sheet
+  syncMetas(metas);
+  renderCopecObjetivos();
+  toast('Metas guardadas');
+});
+
+function syncMetas(metas) {
+  var emp = EMPRESAS[empresaActual];
+  var filas = [];
+  sucursales.forEach(function(suc) {
+    var id = sucId(suc);
+    var meta = metas[suc] !== undefined ? metas[suc]+'%' : '';
+    filas.push([id, suc, 'Meta %'].concat(mesesDisp.map(function(){ return meta; })));
+  });
+  fetch(emp.scriptUrl, {
+    method:'POST', mode:'no-cors',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({tipo:'valorizacion_metas', meses:mesesDisp, filas:filas})
+  }).catch(function(){});
+}
+
+document.getElementById('btn-load-sheets').addEventListener('click', loadFromSheets);
+
+// Sync
+function sync(tipo) {
+  var dot=document.getElementById('sync-dot');
+  var msg=document.getElementById('sync-msg');
+  var log=document.getElementById('sync-log');
+  dot.className='dot syncing';
+  msg.textContent='Enviando a Google Sheets...';
+
+
+  var payload;
+  if(tipo==='valorizacion'){
+    var filas=[];
+    sucursales.forEach(function(suc){
+      var id=sucId(suc);
+      var vals=mesesDisp.map(function(m){var p=getPct(suc,m);return p!==null?parseFloat(p.toFixed(1))+'%':'';});
+      filas.push([id,suc,'% Real'].concat(vals));
+      filas.push([id,suc,'Meta %'].concat(mesesDisp.map(function(){return '';})));
+    });
+    payload={tipo:'valorizacion',meses:mesesDisp,filas:filas};
+  } else if(tipo==='trazabilidad'){
+    var filas2=trazRows.map(function(r){
+      var row=[sucId(r.suc)];
+      emp.trazCols.forEach(function(col){
+        if(col.key==='mes') row.push(MESES_ES[parseInt(r.mes.slice(5))]);
+        else if(col.key==='suc') row.push(r.suc);
+        else row.push(r[col.key]!==undefined?r[col.key]:'');
+      });
+      return row;
+    });
+    payload={tipo:'trazabilidad',filas:filas2};
+  } else {
+    var results=calcObjetivos();
+    var filas3=results.map(function(r){return [sucId(r.suc),r.suc,r.mes,r.obj,r.estado,r.detalle];});
+    payload={tipo:'objetivos',filas:filas3};
+  }
+
+  fetch(emp.scriptUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(function(){
+      dot.className='dot connected';
+      var hora=new Date().toLocaleTimeString('es-CL');
+      var label=tipo==='valorizacion'?'Valorizacion':tipo==='trazabilidad'?'Trazabilidad_Docs':'Objetivos';
+      msg.textContent='Ultima sync: '+hora;
+      log.style.display='block';
+      log.innerHTML+=label+' - '+payload.filas.length+' filas - '+hora+'<br>';
+      toast(label+' actualizada en Sheets');
+    })
+    .catch(function(err){
+      dot.className='dot error';
+      msg.textContent='Error al conectar';
+      toast('Error: '+err.message,'err');
+    })
+    .finally(function(){
+
+    });
+}
+
+
+
+document.addEventListener('DOMContentLoaded',function(){
+  initEmpresaPills();
+  renderTrazHeaders();
+});
+</script>
+</body>
+</html>
