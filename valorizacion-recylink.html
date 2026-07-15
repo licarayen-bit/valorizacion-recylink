@@ -515,12 +515,15 @@ function autoSync(rows) {
   var emp = EMPRESAS[empresaActual];
 
   // Preparar payload valorización
+  var metasActuales = empresaActual === 'copec' ? getCopecMetas() : empresaActual === 'abastible' ? ABASTIBLE_METAS : {};
   var filasVal = [];
   sucursales.forEach(function(suc){
     var id = sucId(suc);
     var vals = mesesDisp.map(function(m){ var p=getPct(suc,m); return p!==null?parseFloat(p.toFixed(1))+'%':''; });
     filasVal.push([id,suc,'% Real'].concat(vals));
-    filasVal.push([id,suc,'Meta %'].concat(mesesDisp.map(function(){return '';})));
+    // Reenviar la meta actual (no vacia) para que writeValorizacion no la borre al reinsertar filas
+    var metaVal = metasActuales[suc] !== undefined ? metasActuales[suc]+'%' : '';
+    filasVal.push([id,suc,'Meta %'].concat(mesesDisp.map(function(){ return metaVal; })));
   });
 
   // Preparar payload trazabilidad
