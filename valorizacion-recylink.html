@@ -129,23 +129,9 @@ tbody tr:hover{background:var(--surface2)}
       <h3>Sin datos</h3><p>Selecciona una empresa y carga un Excel de trazabilidad</p>
     </div>
     <div id="val-content" style="display:none">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0;flex-wrap:wrap;gap:8px">
-        <div class="filters" style="margin-bottom:0">
-          <label>Sucursal</label><select id="f-suc"></select>
-          <label>Mes</label><select id="f-mes"></select>
-        </div>
-        <button class="btn btn-ghost" id="btn-editar-residuos">&#9881; Residuos valorizados</button>
-      </div>
-      <div id="residuos-form" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin:16px 0">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap">
-          <span style="font-size:14px;font-weight:600;color:var(--text)">Residuos considerados como valorizados</span>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-ghost" id="btn-cancelar-residuos">Cancelar</button>
-            <button class="btn btn-primary" id="btn-guardar-residuos">Guardar</button>
-          </div>
-        </div>
-        <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Marca los residuos que deben contar en el % de valorización de esta empresa. Si no guardas ninguna seleccion, se sigue usando el criterio por tipo de tratamiento (comportamiento actual).</p>
-        <div id="residuos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;max-height:360px;overflow-y:auto"></div>
+      <div class="filters">
+        <label>Sucursal</label><select id="f-suc"></select>
+        <label>Mes</label><select id="f-mes"></select>
       </div>
       <div class="metrics" id="metrics"></div>
       <div class="chart-wrap"><canvas id="val-chart"></canvas></div>
@@ -259,7 +245,7 @@ var MES_L = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','
 var MESES_ES = {1:'Enero',2:'Febrero',3:'Marzo',4:'Abril',5:'Mayo',6:'Junio',7:'Julio',8:'Agosto',9:'Septiembre',10:'Octubre',11:'Noviembre',12:'Diciembre'};
 var VALORIZADOS_LIST = ['Reciclaje','Coprocesamiento (Valorizado)','Reutilizacion','Reutilización','Compostaje','Donaciones','Vermicompostaje','Recauchaje','Gestion Interna','Gestión Interna'];
 
-function isValorizadoTratamiento(trat) {
+function isValorizado(trat) {
   if (!trat) return false;
   var t = (trat+'').trim().toLowerCase()
     .replace(/\u00f3/g,'o').replace(/\u00f3/g,'o')
@@ -267,26 +253,6 @@ function isValorizadoTratamiento(trat) {
   return VALORIZADOS_LIST.some(function(v){
     return v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'') === t;
   });
-}
-
-// Configuracion por empresa de que Residuos cuentan para el % de valorizacion.
-// null = no configurado -> se usa el criterio historico por Tipo de Tratamiento.
-function getResiduosConfig(empresaKey) {
-  var emp = EMPRESAS[empresaKey];
-  try {
-    var raw = localStorage.getItem(emp.prefix+'_residuos_valorizados');
-    return raw !== null ? JSON.parse(raw) : null;
-  } catch(e) { return null; }
-}
-function saveResiduosConfig(empresaKey, lista) {
-  var emp = EMPRESAS[empresaKey];
-  localStorage.setItem(emp.prefix+'_residuos_valorizados', JSON.stringify(lista));
-}
-
-function isValorizado(residuo, trat) {
-  var config = getResiduosConfig(empresaActual);
-  if (config !== null) return config.indexOf(residuo) >= 0;
-  return isValorizadoTratamiento(trat);
 }
 var DOC_LABELS = {cert:'cert. tratamiento',factura:'factura',decl:'cert. declaracion',transp:'transportista',disp:'disposicion final'};
 var OBJ_ANUALES = {valorizar_residuo:1,reg_valorizar:1,respel:1};
@@ -325,25 +291,14 @@ var COPEC_METAS_DEFAULT = {
   'CDL 1240 - Santiago': 15
 };
 
-var METAS_DEFAULT = {
-  copec: COPEC_METAS_DEFAULT,
-  abastible: ABASTIBLE_METAS,
-  socovesa: {}
-};
-var metasFromSheets = {};
-
-function getMetas(empresaKey) {
-  var emp = EMPRESAS[empresaKey];
-  var stored = null;
+function getCopecMetas() {
   try {
-    var raw = localStorage.getItem(emp.prefix+'_metas');
-    stored = raw ? JSON.parse(raw) : null;
-  } catch(e) { stored = null; }
-  return Object.assign({}, METAS_DEFAULT[empresaKey]||{}, metasFromSheets, stored||{});
+    var saved = localStorage.getItem('copec_metas');
+    return saved ? JSON.parse(saved) : Object.assign({}, COPEC_METAS_DEFAULT);
+  } catch(e) { return Object.assign({}, COPEC_METAS_DEFAULT); }
 }
-function saveMetas(empresaKey, metas) {
-  var emp = EMPRESAS[empresaKey];
-  localStorage.setItem(emp.prefix+'_metas', JSON.stringify(metas));
+function saveCopecMetas(metas) {
+  localStorage.setItem('copec_metas', JSON.stringify(metas));
 }
 
 // Normalización de nombres de sucursal
@@ -434,7 +389,7 @@ function initEmpresaPills() {
 }
 
 function resetData() {
-  valMatrix={}; trazRows=[]; sucursales=[]; mesesDisp=[]; rawRows=[]; sheetsObjetivosData=null; metasFromSheets={};
+  valMatrix={}; trazRows=[]; sucursales=[]; mesesDisp=[]; rawRows=[]; sheetsObjetivosData=null;
   if (chartInst) { chartInst.destroy(); chartInst=null; }
   // Remove grouped val view if exists
   var grouped = document.getElementById('val-grouped');
@@ -450,7 +405,7 @@ function resetData() {
   var hasObj = (emp && emp.objetivos!==null) || empresaActual==='copec' || empresaActual==='abastible';
   document.getElementById('obj-empty').style.display = hasObj ? 'none' : '';
   document.getElementById('obj-content').style.display = hasObj ? 'block' : 'none';
-  document.getElementById('btn-editar-metas').style.display = 'inline-flex';
+  document.getElementById('btn-editar-metas').style.display = empresaActual==='copec' ? 'inline-flex' : 'none';
   document.getElementById('obj-grid').innerHTML = '';
   renderCopecObjetivos();
   
@@ -494,7 +449,7 @@ function processData(rows, fname) {
     if (!valMatrix[suc]) valMatrix[suc]={};
     if (!valMatrix[suc][mes]) valMatrix[suc][mes]={total:0,val:0};
     valMatrix[suc][mes].total+=kg;
-    if (isValorizado(residuo, trat)) valMatrix[suc][mes].val+=kg;
+    if (isValorizado(trat)) valMatrix[suc][mes].val+=kg;
 
     var key = suc+'||'+mes+'||'+residuo;
     // Para trazabilidad y objetivos solo considerar operaciones finalizadas
@@ -542,7 +497,7 @@ function processData(rows, fname) {
   var hasObj = emp.objetivos!==null || empresaActual==='copec' || empresaActual==='abastible';
   document.getElementById('obj-empty').style.display=hasObj?'none':'';
   document.getElementById('obj-content').style.display=hasObj?'block':'none';
-  document.getElementById('btn-editar-metas').style.display='inline-flex';
+  document.getElementById('btn-editar-metas').style.display=empresaActual==='copec'?'inline-flex':'none';
 
   document.getElementById('sync-dot').className='dot syncing';
   document.getElementById('sync-msg').textContent='Sincronizando con Google Sheets...';
@@ -663,7 +618,7 @@ function renderVal() {
   var thBase='background:var(--surface2);padding:8px 12px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border);white-space:nowrap;';
   var thFirst=thBase+'text-align:left;min-width:180px;';
   var thCol=thBase+'text-align:center;border-left:1px solid var(--border);';
-  var valMetas = getMetas(empresaActual);
+  var valMetas = empresaActual === 'copec' ? getCopecMetas() : empresaActual === 'abastible' ? ABASTIBLE_METAS : {};
 
   sucsToShow.forEach(function(suc) {
     if (!valMatrix[suc]) return; // Sucursal solo en trazabilidad, no en valorización
@@ -733,13 +688,17 @@ function renderVal() {
     });
     trAcum.innerHTML=acumCells; tbody.appendChild(trAcum);
 
-    // Fila Meta
-    if (meta !== null) {
-      var trMetaV=document.createElement('tr');
-      trMetaV.style.borderTop='1px solid var(--border)';
-      var metaVCells='<td style="padding:9px 12px;color:var(--text-muted);border-right:1px solid var(--border)">Meta 2026</td>';
-      mesesToShow.forEach(function(){ metaVCells+='<td style="padding:9px 12px;text-align:center;border-left:1px solid var(--border);color:var(--text-muted)">'+meta+'%</td>'; });
-      trMetaV.innerHTML=metaVCells; tbody.appendChild(trMetaV);
+    // Fila Meta (solo Copec)
+    if (empresaActual === 'copec') {
+      var metas = getCopecMetas();
+      var meta = metas[suc] !== undefined ? metas[suc] : null;
+      if (meta !== null) {
+        var trMetaV=document.createElement('tr');
+        trMetaV.style.borderTop='1px solid var(--border)';
+        var metaVCells='<td style="padding:9px 12px;color:var(--text-muted);border-right:1px solid var(--border)">Meta 2026</td>';
+        mesesToShow.forEach(function(){ metaVCells+='<td style="padding:9px 12px;text-align:center;border-left:1px solid var(--border);color:var(--text-muted)">'+meta+'%</td>'; });
+        trMetaV.innerHTML=metaVCells; tbody.appendChild(trMetaV);
+      }
     }
 
     table.appendChild(tbody);
@@ -848,11 +807,11 @@ function calcObjetivos() {
       var estado='',detalle='';
       if(obj.tipo==='valorizar_residuo'){
         var res=[];
-        rowsSuc.forEach(function(r){if(isValorizado(r['Residuo'],r['Tipo de Tratamiento'])){var rv=r['Residuo'];if(rv&&res.indexOf(rv)<0)res.push(rv);}});
+        rowsSuc.forEach(function(r){if(isValorizado(r['Tipo de Tratamiento'])){var rv=r['Residuo'];if(rv&&res.indexOf(rv)<0)res.push(rv);}});
         estado=res.length>0?'OK':'No';
         detalle=res.length>0?res.join(', '):'No se encontraron residuos valorizados';
       } else if(obj.tipo==='reg_valorizar'){
-        var tiene=rowsSuc.some(function(r){return isValorizado(r['Residuo'],r['Tipo de Tratamiento']);});
+        var tiene=rowsSuc.some(function(r){return isValorizado(r['Tipo de Tratamiento']);});
         estado=tiene?'OK':'No';
         detalle=tiene?'':'No hay residuos con tratamiento valorizable registrados';
       } else if(obj.tipo==='respel'){
@@ -1159,12 +1118,16 @@ function loadSheetsData(data) {
       if (!row) return;
       var suc = (row['Sucursal']||row[1]||'')+'';
       var tipo = (row['Tipo']||row[2]||'')+'';
-      if (!suc) return;
-      function parsePct(val) {
-        if (val === '' || val === null || val === undefined) return null;
+      if (!suc || tipo !== '% Real') return;
+      if (!valMatrix[suc]) valMatrix[suc] = {};
+      // Meses son columnas dinámicas — buscar por nombre de mes
+      Object.keys(MESES_ES).forEach(function(k) {
+        var mesLabel = MESES_ES[k];
+        var val = row[mesLabel];
+        if (val === '' || val === null || val === undefined) return;
         var raw = (val+'').replace('%','').replace(',','.').trim();
         var pct = parseFloat(raw);
-        if (isNaN(pct)) return null;
+        if (isNaN(pct)) return;
         // Si el string original tenía %, ya es un porcentaje directo
         // Si es número entre 0 y 1 exclusive (no exactamente 1), multiplicar por 100
         // Si es exactamente 0 o 1, puede ser decimal (0%/100%) o ya estar en %
@@ -1174,24 +1137,6 @@ function loadSheetsData(data) {
         // Si es exactamente 1 sin %, asumir que es decimal = 100%
         // Si es > 1 sin %, ya es porcentaje directo
         else if (!hasPercent && pct === 1) pct = 100;
-        return pct;
-      }
-      if (tipo === 'Meta %') {
-        // Meta es un único valor por sucursal: usar el primer mes con dato
-        Object.keys(MESES_ES).some(function(k) {
-          var pct = parsePct(row[MESES_ES[k]]);
-          if (pct === null) return false;
-          metasFromSheets[suc] = pct;
-          return true;
-        });
-        return;
-      }
-      if (tipo !== '% Real') return;
-      if (!valMatrix[suc]) valMatrix[suc] = {};
-      // Meses son columnas dinámicas — buscar por nombre de mes
-      Object.keys(MESES_ES).forEach(function(k) {
-        var pct = parsePct(row[MESES_ES[k]]);
-        if (pct === null) return;
         var mesKey = new Date().getFullYear() + '-' + String(k).padStart(2,'0');
         if (!valMatrix[suc][mesKey]) valMatrix[suc][mesKey] = {total:100, val:pct, fromSheets:true};
       });
@@ -1274,7 +1219,7 @@ function loadSheetsData(data) {
   document.getElementById('obj-empty').style.display = hasObj ? 'none' : '';
   document.getElementById('obj-content').style.display = hasObj || empresaActual === 'copec' || empresaActual === 'abastible' ? 'block' : 'none';
   document.getElementById('obj-empty').style.display = (hasObj || empresaActual === 'copec' || empresaActual === 'abastible') ? 'none' : '';
-  document.getElementById('btn-editar-metas').style.display = 'inline-flex';
+  document.getElementById('btn-editar-metas').style.display = empresaActual === 'copec' ? 'inline-flex' : 'none'; // Abastible no tiene metas editables
 
 
   renderTrazHeaders(); renderVal(); renderChart(); renderTraz();
@@ -1415,7 +1360,7 @@ function renderCopecObjetivos() {
   var grid = document.getElementById('obj-grid');
   grid.innerHTML = '';
   var emp = EMPRESAS[empresaActual];
-  var metas = getMetas(empresaActual);
+  var metas = empresaActual === 'copec' ? getCopecMetas() : (empresaActual === 'abastible' ? ABASTIBLE_METAS : {});
   var sucsToShow = fS === 'all' ? sucursales : [fS];
   var mesesToShow = fM === 'all' ? mesesDisp : [fM];
 
@@ -1648,11 +1593,11 @@ function renderCopecObjetivos() {
 
 
 function openMetasEditor() {
-  var metas = getMetas(empresaActual);
+  var metas = getCopecMetas();
   var grid = document.getElementById('metas-grid');
   grid.innerHTML = '';
   sucursales.forEach(function(suc) {
-    var val = metas[suc] !== undefined ? metas[suc] : '';
+    var val = metas[suc] !== undefined ? metas[suc] : (COPEC_METAS_DEFAULT[suc] || '');
     var div = document.createElement('div');
     div.style.cssText = 'display:flex;align-items:center;gap:8px';
     div.innerHTML = '<label style="font-size:12px;color:var(--text-sec);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+suc+'">'+suc+'</label>'
@@ -1667,18 +1612,17 @@ document.getElementById('btn-cancelar-metas').addEventListener('click', function
   document.getElementById('metas-form').style.display = 'none';
 });
 document.getElementById('btn-guardar-metas').addEventListener('click', function() {
-  var metas = getMetas(empresaActual);
+  var metas = getCopecMetas();
   document.querySelectorAll('#metas-grid input[data-suc]').forEach(function(inp) {
     var suc = inp.getAttribute('data-suc');
     var val = parseFloat(inp.value);
     if (!isNaN(val)) metas[suc] = val;
   });
-  saveMetas(empresaActual, metas);
+  saveCopecMetas(metas);
   document.getElementById('metas-form').style.display = 'none';
   // Sincronizar metas al Sheet
   syncMetas(metas);
   renderCopecObjetivos();
-  renderVal();
   toast('Metas guardadas');
 });
 
@@ -1696,53 +1640,6 @@ function syncMetas(metas) {
     body: JSON.stringify({tipo:'valorizacion_metas', meses:mesesDisp, filas:filas})
   }).catch(function(){});
 }
-
-function openResiduosEditor() {
-  var config = getResiduosConfig(empresaActual);
-
-  var residuosSet = {};
-  trazRows.forEach(function(r){ if (r.residuo) residuosSet[r.residuo] = true; });
-  rawRows.forEach(function(r){ var res = r['Residuo']; if (res) residuosSet[res] = true; });
-  var residuosList = Object.keys(residuosSet).sort();
-
-  var grid = document.getElementById('residuos-grid');
-  grid.innerHTML = '';
-  if (!residuosList.length) {
-    grid.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">No hay residuos cargados todavia. Carga un Excel o datos desde Sheets primero.</p>';
-    document.getElementById('residuos-form').style.display = 'block';
-    return;
-  }
-  residuosList.forEach(function(res) {
-    var checked = config !== null
-      ? config.indexOf(res) >= 0
-      : rawRows.some(function(r){ return r['Residuo']===res && isValorizadoTratamiento(r['Tipo de Tratamiento']); });
-    var div = document.createElement('div');
-    div.style.cssText = 'display:flex;align-items:center;gap:8px';
-    div.innerHTML = '<input type="checkbox" data-residuo="'+res.replace(/"/g,'&quot;')+'" '+(checked?'checked':'')+' style="width:16px;height:16px;flex-shrink:0">'
-      + '<label style="font-size:13px;color:var(--text)">'+res+'</label>';
-    grid.appendChild(div);
-  });
-  document.getElementById('residuos-form').style.display = 'block';
-}
-
-document.getElementById('btn-editar-residuos').addEventListener('click', openResiduosEditor);
-document.getElementById('btn-cancelar-residuos').addEventListener('click', function() {
-  document.getElementById('residuos-form').style.display = 'none';
-});
-document.getElementById('btn-guardar-residuos').addEventListener('click', function() {
-  var seleccionados = [];
-  document.querySelectorAll('#residuos-grid input[data-residuo]').forEach(function(inp) {
-    if (inp.checked) seleccionados.push(inp.getAttribute('data-residuo'));
-  });
-  saveResiduosConfig(empresaActual, seleccionados);
-  document.getElementById('residuos-form').style.display = 'none';
-  if (rawRows.length > 0) {
-    processData(rawRows, null);
-  } else {
-    renderVal(); renderChart(); renderTraz(); renderCopecObjetivos();
-  }
-  toast('Residuos valorizados actualizados');
-});
 
 document.getElementById('btn-load-sheets').addEventListener('click', loadFromSheets);
 
