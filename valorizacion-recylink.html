@@ -291,11 +291,16 @@ var COPEC_METAS_DEFAULT = {
   'CDL 1240 - Santiago': 15
 };
 
+// Metas leidas de la hoja de Sheets (fila "Meta %"), fuente compartida entre navegadores/equipos.
+var metasFromSheets = {};
+
 function getCopecMetas() {
+  var stored = null;
   try {
     var saved = localStorage.getItem('copec_metas');
-    return saved ? JSON.parse(saved) : Object.assign({}, COPEC_METAS_DEFAULT);
-  } catch(e) { return Object.assign({}, COPEC_METAS_DEFAULT); }
+    stored = saved ? JSON.parse(saved) : null;
+  } catch(e) { stored = null; }
+  return Object.assign({}, COPEC_METAS_DEFAULT, metasFromSheets, stored || {});
 }
 function saveCopecMetas(metas) {
   localStorage.setItem('copec_metas', JSON.stringify(metas));
@@ -389,7 +394,7 @@ function initEmpresaPills() {
 }
 
 function resetData() {
-  valMatrix={}; trazRows=[]; sucursales=[]; mesesDisp=[]; rawRows=[]; sheetsObjetivosData=null;
+  valMatrix={}; trazRows=[]; sucursales=[]; mesesDisp=[]; rawRows=[]; sheetsObjetivosData=null; metasFromSheets={};
   if (chartInst) { chartInst.destroy(); chartInst=null; }
   // Remove grouped val view if exists
   var grouped = document.getElementById('val-grouped');
@@ -1121,16 +1126,12 @@ function loadSheetsData(data) {
       if (!row) return;
       var suc = (row['Sucursal']||row[1]||'')+'';
       var tipo = (row['Tipo']||row[2]||'')+'';
-      if (!suc || tipo !== '% Real') return;
-      if (!valMatrix[suc]) valMatrix[suc] = {};
-      // Meses son columnas dinámicas — buscar por nombre de mes
-      Object.keys(MESES_ES).forEach(function(k) {
-        var mesLabel = MESES_ES[k];
-        var val = row[mesLabel];
-        if (val === '' || val === null || val === undefined) return;
+      if (!suc) return;
+      function parsePct(val) {
+        if (val === '' || val === null || val === undefined) return null;
         var raw = (val+'').replace('%','').replace(',','.').trim();
         var pct = parseFloat(raw);
-        if (isNaN(pct)) return;
+        if (isNaN(pct)) return null;
         // Si el string original tenía %, ya es un porcentaje directo
         // Si es número entre 0 y 1 exclusive (no exactamente 1), multiplicar por 100
         // Si es exactamente 0 o 1, puede ser decimal (0%/100%) o ya estar en %
@@ -1140,6 +1141,24 @@ function loadSheetsData(data) {
         // Si es exactamente 1 sin %, asumir que es decimal = 100%
         // Si es > 1 sin %, ya es porcentaje directo
         else if (!hasPercent && pct === 1) pct = 100;
+        return pct;
+      }
+      if (tipo === 'Meta %') {
+        // Meta es un unico valor por sucursal: usar el primer mes con dato
+        Object.keys(MESES_ES).some(function(k) {
+          var pct = parsePct(row[MESES_ES[k]]);
+          if (pct === null) return false;
+          metasFromSheets[suc] = pct;
+          return true;
+        });
+        return;
+      }
+      if (tipo !== '% Real') return;
+      if (!valMatrix[suc]) valMatrix[suc] = {};
+      // Meses son columnas dinámicas — buscar por nombre de mes
+      Object.keys(MESES_ES).forEach(function(k) {
+        var pct = parsePct(row[MESES_ES[k]]);
+        if (pct === null) return;
         var mesKey = new Date().getFullYear() + '-' + String(k).padStart(2,'0');
         if (!valMatrix[suc][mesKey]) valMatrix[suc][mesKey] = {total:100, val:pct, fromSheets:true};
       });
