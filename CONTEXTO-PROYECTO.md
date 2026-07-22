@@ -107,7 +107,43 @@ Funciones del Apps Script (`doPost`, `doGet`):
    → "Parque Olimpia III - Socovesa sur") requieren limpieza manual del Sheet + alias en `SUC_ALIAS`.
 6. La app solo funciona sirviéndose por HTTP (no `file://`) por CORS — pendiente subir a GitHub Pages.
 
+## Total Residuos + RESPEL (solo Copec)
+El Sheet de Copec tiene 2 hojas adicionales a las 3 comunes, exclusivas de Copec:
+- `Total Residuos` — headers: `Sucursal | Mes | Residuo | Valorizado/No Valorizado | Respel no respel | Total KG | Total M3`.
+  Una fila por combinación única Sucursal+Mes+Residuo+Valorizado/No Valorizado+Respel/No Respel
+  (un mismo residuo puede generar 2 filas en un mes si tuvo operaciones valorizadas y no valorizadas).
+  Se llena automáticamente desde el Excel de trazabilidad (`processData()` en el JS), igual que
+  ♻️ Valorización y 📊 Trazabilidad_Docs — no se llena a mano.
+- `RESPEL` — headers: `Residuo | RESPEL` (TRUE/FALSE), ~55 residuos mapeados. Fuente de verdad para
+  clasificar qué residuos son Respel. Se lee vía `doGet` y se cachea en `respelSet` (JS). Si `respelSet`
+  está vacío (Sheet aún no cargado), `isRespel()` cae a un fallback por nombre (substring "respel").
+
+**Cálculo de %Real/%Acumulado para Copec**: excluye SIEMPRE los residuos Respel (decisión tomada
+2026-07-22). `processData()` construye `valMatrix` sumando kg solo de filas no-Respel, así que
+`getPct`/`getAcum` ya excluyen Respel sin cambios propios. `autoSync()` ahora también escribe una
+fila `% Acumulado` en ♻️ Valorización (antes solo se escribía `% Real` y `Meta %`; la fila
+`% Acumulado` ya existía vacía en el Sheet pero nada la llenaba).
+
+**Apps Script pendiente de agregar manualmente** (no hay acceso de edición directa al proyecto
+de Apps Script desde aquí — vive en Google, no en este repo). El Code.gs real de Copec tiene
+DOS doGet fusionados: `doGetClasico_` (el que consume `valorizacion-recylink.html`, sin query
+params) y `doGetVisor_` (otro desarrollo distinto, activado por `?callback=`/`?visor=1` — no tocar).
+Falta agregar en `doGetClasico_`/`doPost`:
+1. `doGetClasico_` debe agregar `respel: readRespelSheet_()` al objeto `result` que devuelve
+   (hoy solo devuelve `{valorizacion, trazabilidad, objetivos}`).
+2. `doPost` debe agregar el caso `tipo === 'totalResiduos'` → `writeTotalResiduos(ss, data)`.
+3. Ni "Total Residuos" ni "RESPEL" tienen las filas decorativas de título que sí tienen las 3
+   hojas principales (headers en fila 5) — el header está en una fila distinta, por eso las
+   funciones nuevas ubican el header buscando "Sucursal"/"Residuo" en columna A en vez de asumir
+   fila fija.
+- Código completo y listo para copiar/pegar (Code.gs fusionado con estos 3 cambios ya
+  integrados) en `Code.gs` en la raíz del repo.
+
 ## Pendientes conocidos
+- [ ] Agregar al Apps Script de Copec el soporte para `tipo:'totalResiduos'` en `doPost` y el
+      campo `respel` en `doGet` (ver sección "Total Residuos + RESPEL" arriba) — sin esto, el
+      JS ya calcula todo pero la sincronización a esas 2 hojas fallará silenciosamente (`no-cors`
+      no reporta error de HTTP).
 - [ ] Subir la app a GitHub Pages (usuario tiene `licarayen-bit.github.io`)
 - [ ] Verificar que el Apps Script de Copec y Abastible tengan la misma corrección de
       `writeObjetivos` que Socovesa (borrar por `empresa_id+mes`, no por prefijo completo)

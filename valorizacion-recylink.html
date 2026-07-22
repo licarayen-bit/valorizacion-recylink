@@ -254,6 +254,18 @@ function isValorizado(trat) {
     return v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'') === t;
   });
 }
+
+// Clasificacion Respel para Copec: se carga desde la hoja RESPEL (Residuo -> TRUE/FALSE) via doGet.
+// Mientras no este cargada, se usa un fallback por nombre (igual al comportamiento anterior).
+var respelSet = {};
+function normResiduo(s) {
+  return (s+'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+}
+function isRespel(residuo) {
+  var key = normResiduo(residuo);
+  if (Object.keys(respelSet).length > 0) return respelSet[key] === true;
+  return key.indexOf('respel') >= 0;
+}
 var DOC_LABELS = {cert:'cert. tratamiento',factura:'factura',decl:'cert. declaracion',transp:'transportista',disp:'disposicion final'};
 var OBJ_ANUALES = {valorizar_residuo:1,reg_valorizar:1,respel:1};
 
@@ -312,7 +324,7 @@ var SUC_ALIAS = {
 };
 
 var empresaActual = 'copec';
-var valMatrix = {}, trazRows = [], sucursales = [], mesesDisp = [], rawRows = [];
+var valMatrix = {}, trazRows = [], sucursales = [], mesesDisp = [], rawRows = [], totalResiduosRows = [];
 var chartInst = null;
 var sheetsObjetivosData = null;
 
@@ -394,7 +406,7 @@ function initEmpresaPills() {
 }
 
 function resetData() {
-  valMatrix={}; trazRows=[]; sucursales=[]; mesesDisp=[]; rawRows=[]; sheetsObjetivosData=null; metasFromSheets={};
+  valMatrix={}; trazRows=[]; sucursales=[]; mesesDisp=[]; rawRows=[]; totalResiduosRows=[]; sheetsObjetivosData=null; metasFromSheets={};
   if (chartInst) { chartInst.destroy(); chartInst=null; }
   // Remove grouped val view if exists
   var grouped = document.getElementById('val-grouped');
@@ -436,8 +448,11 @@ document.getElementById('file-input').addEventListener('change', function(e) {
 function processData(rows, fname) {
   rawRows = rows;
   valMatrix = {};
+  totalResiduosRows = [];
   var trazMap = {};
+  var trMap = {}; // Sucursal+Mes+Residuo+Valorizado+Respel -> {kg,m3} (solo Copec, alimenta Total Residuos)
   var emp = EMPRESAS[empresaActual];
+  var esCopec = empresaActual === 'copec';
 
   rows.forEach(function(r) {
     var suc = r['Sucursal']||'';
@@ -446,15 +461,28 @@ function processData(rows, fname) {
     var mes = toYM(r['Fecha de Operacion']||r['Fecha de Operación']||r['Fecha de operación']||'');
     if (!suc||!mes) return;
     var kg = parseFloat(r['Control de Peso (Kg)'])||0;
+    var m3 = parseFloat(r['Volumen Calculado'])||0;
     var trat = r['Tipo de Tratamiento']||'';
     var residuo = r['Residuo']||'';
     var ler = (r['Codigo LER']||r['Código LER']||'')+'';
     var estado = (r['Estado']||r['estado']||'').toLowerCase().trim();
+    var valorizado = isValorizado(trat);
+    var respel = esCopec && isRespel(residuo);
+
+    if (esCopec) {
+      var trKey = suc+'||'+mes+'||'+residuo+'||'+(valorizado?'V':'N')+'||'+(respel?'R':'X');
+      if (!trMap[trKey]) trMap[trKey] = {suc:suc,mes:mes,residuo:residuo,valorizado:valorizado,respel:respel,kg:0,m3:0};
+      trMap[trKey].kg += kg;
+      trMap[trKey].m3 += m3;
+    }
 
     if (!valMatrix[suc]) valMatrix[suc]={};
     if (!valMatrix[suc][mes]) valMatrix[suc][mes]={total:0,val:0};
-    valMatrix[suc][mes].total+=kg;
-    if (isValorizado(trat)) valMatrix[suc][mes].val+=kg;
+    // Copec: excluir Respel del calculo de % valorizacion (Total Residuos es la fuente de verdad)
+    if (!respel) {
+      valMatrix[suc][mes].total+=kg;
+      if (valorizado) valMatrix[suc][mes].val+=kg;
+    }
 
     var key = suc+'||'+mes+'||'+residuo;
     // Para trazabilidad y objetivos solo considerar operaciones finalizadas
@@ -478,6 +506,7 @@ function processData(rows, fname) {
     if (ingreso > 0) g.tieneIngreso++;
   });
 
+  if (esCopec) totalResiduosRows = Object.values(trMap);
   trazRows = Object.values(trazMap).sort(function(a,b){ return a.mes.localeCompare(b.mes)||a.suc.localeCompare(b.suc); });
   sucursales = Object.keys(valMatrix).sort();
   mesesDisp = [];
@@ -526,10 +555,28 @@ function autoSync(rows) {
     var id = sucId(suc);
     var vals = mesesDisp.map(function(m){ var p=getPct(suc,m); return p!==null?parseFloat(p.toFixed(1))+'%':''; });
     filasVal.push([id,suc,'% Real'].concat(vals));
+    var acums = mesesDisp.map(function(m){ var a=getAcum(suc,m); return a!==null?parseFloat(a.toFixed(1))+'%':''; });
+    filasVal.push([id,suc,'% Acumulado'].concat(acums));
     // Reenviar la meta actual (no vacia) para que writeValorizacion no la borre al reinsertar filas
     var metaVal = metasActuales[suc] !== undefined ? metasActuales[suc]+'%' : '';
     filasVal.push([id,suc,'Meta %'].concat(mesesDisp.map(function(){ return metaVal; })));
   });
+
+  // Total Residuos (solo Copec): Sucursal | Mes | Residuo | Valorizado/No Valorizado | Respel no respel | Total KG | Total M3
+  var filasTotalResiduos = [];
+  if (empresaActual === 'copec') {
+    filasTotalResiduos = totalResiduosRows.map(function(r){
+      return [
+        r.suc,
+        MESES_ES[parseInt(r.mes.slice(5))],
+        r.residuo,
+        r.valorizado ? 'Valorizado' : 'No Valorizado',
+        r.respel ? 'Respel' : 'No respel',
+        parseFloat(r.kg.toFixed(2)),
+        parseFloat(r.m3.toFixed(2))
+      ];
+    });
+  }
 
   // Preparar payload trazabilidad
   var filasTraz = trazRows.map(function(r){
@@ -565,6 +612,9 @@ function autoSync(rows) {
     .then(function(){ return sendPayload({tipo:'trazabilidad', filas:filasTraz}); })
     .then(function(){
       if (filasObj.length) return sendPayload({tipo:'objetivos', filas:filasObj});
+    })
+    .then(function(){
+      if (filasTotalResiduos.length) return sendPayload({tipo:'totalResiduos', filas:filasTotalResiduos});
     })
     .then(function(){
       var hora = new Date().toLocaleTimeString('es-CL');
@@ -1116,6 +1166,18 @@ function loadSheetsData(data) {
   valMatrix = {};
   trazRows = [];
   rawRows = [];
+
+  // Cargar lista RESPEL (Copec) desde la hoja RESPEL: Residuo -> TRUE/FALSE
+  respelSet = {};
+  if (data.respel && data.respel.length > 0) {
+    data.respel.forEach(function(row) {
+      if (!row) return;
+      var name = (row['Residuo']||row[0]||'')+'';
+      var flag = (row['RESPEL']||row[1]||'')+'';
+      if (!name) return;
+      respelSet[normResiduo(name)] = (flag+'').trim().toUpperCase() === 'TRUE';
+    });
+  }
 
   // Cargar valorización
   // Formato: [empresa_id, sucursal, tipo, ene%, feb%, ...]
