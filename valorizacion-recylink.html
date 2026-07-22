@@ -406,7 +406,7 @@ function initEmpresaPills() {
 }
 
 function resetData() {
-  valMatrix={}; trazRows=[]; sucursales=[]; mesesDisp=[]; rawRows=[]; totalResiduosRows=[]; sheetsObjetivosData=null; metasFromSheets={};
+  valMatrix={}; trazRows=[]; sucursales=[]; mesesDisp=[]; rawRows=[]; totalResiduosRows=[]; acumFromSheets={}; sheetsObjetivosData=null; metasFromSheets={};
   if (chartInst) { chartInst.destroy(); chartInst=null; }
   // Remove grouped val view if exists
   var grouped = document.getElementById('val-grouped');
@@ -449,6 +449,7 @@ function processData(rows, fname) {
   rawRows = rows;
   valMatrix = {};
   totalResiduosRows = [];
+  acumFromSheets = {};
   var trazMap = {};
   var trMap = {}; // Sucursal+Mes+Residuo+Valorizado+Respel -> {kg,m3} (solo Copec, alimenta Total Residuos)
   var emp = EMPRESAS[empresaActual];
@@ -627,6 +628,12 @@ function autoSync(rows) {
 }
 
 // Valorización
+// % Acumulado tal como viene de la hoja de Sheets (fila "% Acumulado"), calculado
+// en autoSync() con el kg real ponderado. Se usa cuando los datos vienen de Sheets
+// para no recalcular un promedio simple de los % mensuales (que da un numero distinto
+// y menos preciso que el ponderado por kg).
+var acumFromSheets = {};
+
 function getPct(suc,mes){
   var d=valMatrix[suc]&&valMatrix[suc][mes];
   if(!d||d.total===0)return null;
@@ -634,6 +641,7 @@ function getPct(suc,mes){
   return d.val/d.total*100;
 }
 function getAcum(suc,upTo){
+  if (acumFromSheets[suc] && acumFromSheets[suc][upTo] !== undefined) return acumFromSheets[suc][upTo];
   var tot=0,val=0;
   var hasSheets=false;
   Object.keys(valMatrix[suc]||{}).forEach(function(m){
@@ -1166,6 +1174,7 @@ function loadSheetsData(data) {
   valMatrix = {};
   trazRows = [];
   rawRows = [];
+  acumFromSheets = {};
 
   // Cargar lista RESPEL (Copec) desde la hoja RESPEL: Residuo -> TRUE/FALSE
   respelSet = {};
@@ -1212,6 +1221,18 @@ function loadSheetsData(data) {
           if (pct === null) return false;
           metasFromSheets[suc] = pct;
           return true;
+        });
+        return;
+      }
+      if (tipo === '% Acumulado') {
+        // Usar el acumulado ya calculado (ponderado por kg) en vez de recalcularlo
+        // como promedio simple de los % mensuales — ver getAcum().
+        if (!acumFromSheets[suc]) acumFromSheets[suc] = {};
+        Object.keys(MESES_ES).forEach(function(k) {
+          var pct = parsePct(row[MESES_ES[k]]);
+          if (pct === null) return;
+          var mesKey = new Date().getFullYear() + '-' + String(k).padStart(2,'0');
+          acumFromSheets[suc][mesKey] = pct;
         });
         return;
       }
