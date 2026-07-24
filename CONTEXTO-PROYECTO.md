@@ -2,12 +2,12 @@
 
 Este es un archivo HTML standalone (una sola página, sin build) para Recylink, que
 permite hacer seguimiento de valorización de residuos y trazabilidad documental para
-3 empresas cliente: **Copec**, **Socovesa** y **Abastible**. Sincroniza bidireccionalmente
-con Google Sheets vía Apps Script.
+4 empresas cliente: **Copec**, **Socovesa**, **Abastible** y **Gespania**. Sincroniza
+bidireccionalmente con Google Sheets vía Apps Script.
 
 ## Estructura general
 - Un solo archivo HTML con `<style>` y `<script>` embebidos (sin frameworks, JS vanilla).
-- Selector de empresa arriba (Copec / Socovesa / Abastible) que cambia el contexto global.
+- Selector de empresa arriba (Copec / Socovesa / Abastible / Gespania) que cambia el contexto global.
 - 3 pestañas: **Valorización**, **Trazabilidad**, **Objetivos**.
 - Cada empresa carga datos desde un Excel de trazabilidad (subido por el usuario) o
   desde el Google Sheet correspondiente (botón "↓ Cargar desde Sheets").
@@ -54,7 +54,42 @@ con Google Sheets vía Apps Script.
 - Usa el mismo formato de visualización que Copec (tabla por mes), extendido con 2 filas
   adicionales: "Declarar mensualmente en SINADER" y "KPI costo e ingreso"
 
-## Apps Script (estructura común a las 3 empresas)
+### Gespania (agregada 2026-07-24)
+- Sheet ID: `1628zcLexOnY5sT4S98vOp8vf8fSnc_RdTgBmG6-nLCk`
+- `scriptUrl`: `https://script.google.com/macros/s/AKfycbwENVSOcXoQalAD2b-INqsFx0hVehfwXwrVqegY_2zj_B7S2t_dFqlo_qH1JeYqr9ER/exec`
+  (desplegado 2026-07-24, corriendo `Code-Gespania.gs`)
+- Sucursales: "General Jofre Fontana" y "El Rosal lll" (ojo: en la hoja Contactos aparecen
+  con variantes de escritura — "Fonatana" en vez de "Fontana" — no se agregó alias porque
+  la hoja de Valorización/Objetivos ya usa la forma "Fontana" consistentemente).
+  Esta empresa introduce columnas adicionales que las otras 3 no tienen: `Contactos`,
+  `Minuta`, `👥 Seguimiento_CSE`, `Pendientes sucursales`, `Config.Flat` — ninguna de esas
+  hojas es leída por el visor HTML (`Code-Gespania.gs` solo lee/escribe las 3 hojas
+  estándar + Total Residuos + RESPEL, igual que las demás empresas).
+- `trazDocsCompletos: ['transp','disp']`, `trazDocsInfo: ['cert','factura','decl']` (igual
+  que Abastible)
+- `generaTotalResiduos` incluye a Gespania (`esCopec || esAbastible || esGespania`) porque
+  su Sheet ya trae las pestañas `Total Residuos` y `RESPEL` creadas.
+- Metas de valorización: **no** son un objeto hardcodeado como Copec/Abastible — se leen
+  siempre desde `metasFromSheets` (fila "Meta %" de ♻️ Valorización, 5% fijo todos los
+  meses al momento de agregar la empresa). No son editables desde la app.
+- 4 objetivos (definidos en la hoja `Objetivos 2026` del Sheet, fila 3, y hardcodeados en
+  `EMPRESAS.gespania.objetivos` con el mismo texto exacto para que el matching por nombre
+  con la hoja `🎯 Objetivos` funcione):
+  1. `100% trazabilidad` — tipo `trazabilidad`, igual cálculo que las demás empresas
+  2. `Declarar mensualmente en sinader` — tipo `sinader`, igual cálculo que Abastible/Socovesa
+  3. `Lograr un FGR de 0,2 m3/m2` — tipo `manual`: el % de cumplimiento se ingresa a mano
+     en la hoja `🎯 Objetivos` del Sheet, la app solo lo muestra (no hay forma de calcular
+     FGR — Factor de Generación de Residuos — desde los datos de Trazabilidad_Docs)
+  4. `valorizar un 5% de residuos en kg` — tipo `manual` también, por consistencia con FGR
+     (es en la práctica equivalente al % Real vs Meta 2026 que ya se muestra en la misma
+     tabla, pero se agregó como fila propia porque así está definida en `Objetivos 2026`)
+- Se agregó un tipo de objetivo genérico nuevo, `tipo:'manual'`, en `renderCopecObjetivos()`
+  (no existía antes) — renderiza una fila por objetivo buscando `objBySucMes` por nombre
+  exacto, igual patrón que las filas SINADER/KPI, pero `calcObjetivos()` nunca calcula un
+  estado para estos (no hay `else if(obj.tipo==='manual')` en el switch), así que quedan en
+  "--" hasta que alguien llene manualmente `% cumplimiento` en la hoja `🎯 Objetivos`.
+
+## Apps Script (estructura común a las 3 empresas originales; Gespania sigue el mismo esquema)
 Cada empresa tiene su propio Google Sheet con 3 hojas, headers en fila 5, datos desde fila 6:
 - `♻️ Valorización` — columnas: `empresa_id | Sucursal | Tipo | Enero...Diciembre` (Tipo = "% Real" o "Meta %")
 - `📊 Trazabilidad_Docs` — columnas: `empresa_id | Sucursal | Mes | Residuo | Transportista(nombre) | Código LER | Importaciones | Cert. tratamiento | Factura | Cert. declaración | Transportista | Disposición final`
@@ -107,7 +142,7 @@ Funciones del Apps Script (`doPost`, `doGet`):
    → "Parque Olimpia III - Socovesa sur") requieren limpieza manual del Sheet + alias en `SUC_ALIAS`.
 6. La app solo funciona sirviéndose por HTTP (no `file://`) por CORS — pendiente subir a GitHub Pages.
 
-## Total Residuos + RESPEL (solo Copec)
+## Total Residuos + RESPEL (Copec y Abastible desde 2026-07-24)
 El Sheet de Copec tiene 2 hojas adicionales a las 3 comunes, exclusivas de Copec:
 - `Total Residuos` — headers: `Sucursal | Mes | Residuo | Valorizado/No Valorizado | Respel no respel | Total KG | Total M3`.
   Una fila por combinación única Sucursal+Mes+Residuo+Valorizado/No Valorizado+Respel/No Respel
@@ -118,11 +153,22 @@ El Sheet de Copec tiene 2 hojas adicionales a las 3 comunes, exclusivas de Copec
   clasificar qué residuos son Respel. Se lee vía `doGet` y se cachea en `respelSet` (JS). Si `respelSet`
   está vacío (Sheet aún no cargado), `isRespel()` cae a un fallback por nombre (substring "respel").
 
-**Cálculo de %Real/%Acumulado para Copec**: excluye SIEMPRE los residuos Respel (decisión tomada
-2026-07-22). `processData()` construye `valMatrix` sumando kg solo de filas no-Respel, así que
-`getPct`/`getAcum` ya excluyen Respel sin cambios propios. `autoSync()` ahora también escribe una
-fila `% Acumulado` en ♻️ Valorización (antes solo se escribía `% Real` y `Meta %`; la fila
-`% Acumulado` ya existía vacía en el Sheet pero nada la llenaba).
+**Abastible también genera "Total Residuos"** (agregado 2026-07-24): el JS usa la variable
+`generaTotalResiduos = esCopec || esAbastible` para decidir si arma `totalResiduosRows` y sincroniza
+la hoja `Total Residuos`. Abastible NO tiene hoja `RESPEL` propia — `isRespel()` usa el fallback por
+nombre (substring "respel"), que ya clasifica correctamente porque Abastible tiene un residuo llamado
+literalmente "RESPEL" en sus datos. El Sheet de Abastible necesita la pestaña `Total Residuos` creada
+manualmente (mismos headers que Copec) y su Apps Script necesita el parche en
+`Code-Abastible-patch.gs` (raíz del repo) para soportar `tipo:'totalResiduos'` en `doPost`.
+
+**Cálculo de %Real/%Acumulado**: para Copec excluye SIEMPRE los residuos Respel (decisión tomada
+2026-07-22): `processData()` construye `valMatrix` sumando kg solo de filas no-Respel (variable
+`excluirDeVal = esCopec && respel`), así que `getPct`/`getAcum` ya excluyen Respel sin cambios propios.
+**Para Abastible NO se excluye Respel del %** (decisión tomada 2026-07-24 al extender "Total Residuos"
+a Abastible) — el % sigue incluyendo todos los residuos, solo cambia que ahora también se puebla la
+hoja "Total Residuos" con la clasificación Valorizado/Respel por fila.
+`autoSync()` también escribe una fila `% Acumulado` en ♻️ Valorización (antes solo se escribía `% Real`
+y `Meta %`; la fila `% Acumulado` ya existía vacía en el Sheet pero nada la llenaba).
 
 **Apps Script pendiente de agregar manualmente** (no hay acceso de edición directa al proyecto
 de Apps Script desde aquí — vive en Google, no en este repo). El Code.gs real de Copec tiene
@@ -144,13 +190,28 @@ Falta agregar en `doGetClasico_`/`doPost`:
       campo `respel` en `doGet` (ver sección "Total Residuos + RESPEL" arriba) — sin esto, el
       JS ya calcula todo pero la sincronización a esas 2 hojas fallará silenciosamente (`no-cors`
       no reporta error de HTTP).
+- [ ] Abastible: crear la pestaña `Total Residuos` en su Google Sheet (headers:
+      `Sucursal | Mes | Residuo | Valorizado/No Valorizado | Respel no respel | Total KG | Total M3`)
+      y pegar `Code-Abastible.gs` (raíz del repo) completo en su Apps Script real, reemplazando
+      el Code.gs actual — agrega soporte para `tipo:'totalResiduos'` y de paso corrige
+      `writeObjetivos` (borraba por prefijo de empresa completo en vez de por sucursal+mes,
+      con riesgo de perder histórico de objetivos al sincronizar).
 - [ ] Subir la app a GitHub Pages (usuario tiene `licarayen-bit.github.io`)
-- [ ] Verificar que el Apps Script de Copec y Abastible tengan la misma corrección de
-      `writeObjetivos` que Socovesa (borrar por `empresa_id+mes`, no por prefijo completo)
+- [ ] Verificar que el Apps Script de Copec tenga la misma corrección de `writeObjetivos`
+      que Socovesa (borrar por `empresa_id+mes`, no por prefijo completo) — Abastible ya
+      queda corregido en `Code-Abastible.gs` (ver punto arriba)
 - [ ] Confirmar que el Sheet de Abastible tenga la columna "Factura" en headers de
       `📊 Trazabilidad_Docs` (fila 5), agregada recientemente en el código
 - [ ] Validar visualmente el formato unificado de Objetivos en las 3 empresas tras los
       últimos cambios en `renderCopecObjetivos`
+- [ ] Gespania: verificar que las pestañas `Total Residuos` (headers: `Sucursal | Mes | Residuo
+      | Valorizado/No Valorizado | Respel no respel | Total KG | Total M3`) y `RESPEL` (headers:
+      `Residuo | RESPEL`) del Sheet ya tengan esos headers exactos — no se pudieron inspeccionar
+      visualmente por una falla intermitente de la extensión de navegador durante el análisis
+- [ ] Gespania: probar "Cargar desde Sheets" end-to-end una vez desplegado el Apps Script, y
+      confirmar que el objetivo `Lograr un FGR de 0,2 m3/m2` (tipo manual) se pueda editar
+      directamente en la hoja `🎯 Objetivos` del Sheet (columna `% cumplimiento`, fila con
+      Objetivo = ese texto exacto)
 
 ## Cómo verificar sintaxis JS del archivo
 El HTML es un solo archivo con `<script>...</script>` embebido. Para validar sintaxis:

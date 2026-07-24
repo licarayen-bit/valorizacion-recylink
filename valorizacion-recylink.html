@@ -220,6 +220,25 @@ var EMPRESAS = {
       {id:'kpi_costo',    nombre:'KPI costo e ingreso (ingresos > 0)', tipo:'kpi_costo'}
     ]
   },
+  gespania: {
+    nombre: 'Gespania',
+    scriptUrl: 'https://script.google.com/macros/s/AKfycbwENVSOcXoQalAD2b-INqsFx0hVehfwXwrVqegY_2zj_B7S2t_dFqlo_qH1JeYqr9ER/exec',
+    prefix: 'gespania',
+    trazCols: [
+      {header:'Sucursal',key:'suc'},{header:'Mes',key:'mes'},{header:'Residuo',key:'residuo'},
+      {header:'Cod. LER',key:'ler'},{header:'Imp.',key:'imp'},{header:'Cert. trat.',key:'cert'},
+      {header:'Factura',key:'factura'},{header:'Cert. decl.',key:'decl'},
+      {header:'Transportista',key:'transp'},{header:'Disp. final',key:'disp'}
+    ],
+    trazDocsCompletos: ['transp','disp'],
+    trazDocsInfo: ['cert','factura','decl'],
+    objetivos: [
+      {id:'trazabilidad', nombre:'100% trazabilidad',                     tipo:'trazabilidad'},
+      {id:'sinader',      nombre:'Declarar mensualmente en sinader',      tipo:'sinader'},
+      {id:'fgr',          nombre:'Lograr un FGR de 0,2 m3/m2',            tipo:'manual'},
+      {id:'valorizar_kg', nombre:'valorizar un 5% de residuos en kg',     tipo:'manual'}
+    ]
+  },
   socovesa: {
     nombre: 'Socovesa',
     scriptUrl: 'https://script.google.com/macros/s/AKfycbx5mKQ873Ob_3Yd4n1kUI5imxEpXO5UzllhMpYGCoIBFHwBKSI9Moct7p9SYuEL9znM/exec',
@@ -451,9 +470,12 @@ function processData(rows, fname) {
   totalResiduosRows = [];
   acumFromSheets = {};
   var trazMap = {};
-  var trMap = {}; // Sucursal+Mes+Residuo+Valorizado+Respel -> {kg,m3} (solo Copec, alimenta Total Residuos)
+  var trMap = {}; // Sucursal+Mes+Residuo+Valorizado+Respel -> {kg,m3} (Copec y Abastible, alimenta Total Residuos)
   var emp = EMPRESAS[empresaActual];
   var esCopec = empresaActual === 'copec';
+  var esAbastible = empresaActual === 'abastible';
+  var esGespania = empresaActual === 'gespania';
+  var generaTotalResiduos = esCopec || esAbastible || esGespania;
 
   rows.forEach(function(r) {
     var suc = r['Sucursal']||'';
@@ -468,9 +490,9 @@ function processData(rows, fname) {
     var ler = (r['Codigo LER']||r['Código LER']||'')+'';
     var estado = (r['Estado']||r['estado']||'').toLowerCase().trim();
     var valorizado = isValorizado(trat);
-    var respel = esCopec && isRespel(residuo);
+    var respel = generaTotalResiduos && isRespel(residuo);
 
-    if (esCopec) {
+    if (generaTotalResiduos) {
       var trKey = suc+'||'+mes+'||'+residuo+'||'+(valorizado?'V':'N')+'||'+(respel?'R':'X');
       if (!trMap[trKey]) trMap[trKey] = {suc:suc,mes:mes,residuo:residuo,valorizado:valorizado,respel:respel,kg:0,m3:0};
       trMap[trKey].kg += kg;
@@ -479,8 +501,10 @@ function processData(rows, fname) {
 
     if (!valMatrix[suc]) valMatrix[suc]={};
     if (!valMatrix[suc][mes]) valMatrix[suc][mes]={total:0,val:0};
-    // Copec: excluir Respel del calculo de % valorizacion (Total Residuos es la fuente de verdad)
-    if (!respel) {
+    // Copec: excluir Respel del calculo de % valorizacion (Total Residuos es la fuente de verdad).
+    // Abastible SI genera Total Residuos pero mantiene el % de valorizacion sin excluir Respel.
+    var excluirDeVal = esCopec && respel;
+    if (!excluirDeVal) {
       valMatrix[suc][mes].total+=kg;
       if (valorizado) valMatrix[suc][mes].val+=kg;
     }
@@ -507,7 +531,7 @@ function processData(rows, fname) {
     if (ingreso > 0) g.tieneIngreso++;
   });
 
-  if (esCopec) totalResiduosRows = Object.values(trMap);
+  if (generaTotalResiduos) totalResiduosRows = Object.values(trMap);
   trazRows = Object.values(trazMap).sort(function(a,b){ return a.mes.localeCompare(b.mes)||a.suc.localeCompare(b.suc); });
   sucursales = Object.keys(valMatrix).sort();
   mesesDisp = [];
@@ -550,7 +574,7 @@ function autoSync(rows) {
   var emp = EMPRESAS[empresaActual];
 
   // Preparar payload valorización
-  var metasActuales = empresaActual === 'copec' ? getCopecMetas() : empresaActual === 'abastible' ? ABASTIBLE_METAS : {};
+  var metasActuales = empresaActual === 'copec' ? getCopecMetas() : empresaActual === 'abastible' ? ABASTIBLE_METAS : empresaActual === 'gespania' ? metasFromSheets : {};
   var filasVal = [];
   sucursales.forEach(function(suc){
     var id = sucId(suc);
@@ -563,9 +587,9 @@ function autoSync(rows) {
     filasVal.push([id,suc,'Meta %'].concat(mesesDisp.map(function(){ return metaVal; })));
   });
 
-  // Total Residuos (solo Copec): Sucursal | Mes | Residuo | Valorizado/No Valorizado | Respel no respel | Total KG | Total M3
+  // Total Residuos (Copec, Abastible y Gespania): Sucursal | Mes | Residuo | Valorizado/No Valorizado | Respel no respel | Total KG | Total M3
   var filasTotalResiduos = [];
-  if (empresaActual === 'copec') {
+  if (empresaActual === 'copec' || empresaActual === 'abastible' || empresaActual === 'gespania') {
     filasTotalResiduos = totalResiduosRows.map(function(r){
       return [
         r.suc,
@@ -1465,7 +1489,7 @@ function renderCopecObjetivos() {
   var grid = document.getElementById('obj-grid');
   grid.innerHTML = '';
   var emp = EMPRESAS[empresaActual];
-  var metas = empresaActual === 'copec' ? getCopecMetas() : (empresaActual === 'abastible' ? ABASTIBLE_METAS : {});
+  var metas = empresaActual === 'copec' ? getCopecMetas() : (empresaActual === 'abastible' ? ABASTIBLE_METAS : (empresaActual === 'gespania' ? metasFromSheets : {}));
   var sucsToShow = fS === 'all' ? sucursales : [fS];
   var mesesToShow = fM === 'all' ? mesesDisp : [fM];
 
@@ -1688,6 +1712,22 @@ function renderCopecObjetivos() {
       });
       trKpi.innerHTML=kpiCells; tbody.appendChild(trKpi);
     }
+
+    // Filas de objetivos manuales (ej: Gespania — FGR, valorizar % en kg).
+    // El % de cumplimiento se ingresa a mano en la hoja Objetivos del Sheet,
+    // no se calcula desde el Excel.
+    var objsManual = (emp.objetivos || []).filter(function(o){ return o.tipo === 'manual'; });
+    objsManual.forEach(function(objManual){
+      var trMan=document.createElement('tr');
+      trMan.style.borderTop='1px solid var(--border)';
+      var manCells='<td style="padding:9px 12px;font-weight:500;color:var(--text);border-right:1px solid var(--border)">'+objManual.nombre+'</td>';
+      mesesToShow.forEach(function(m){
+        var r = objBySucMes[suc+'|'+m+'|'+objManual.nombre];
+        if(!r){manCells+='<td style="padding:9px 12px;text-align:center;border-left:1px solid var(--border);color:var(--text-muted)">--</td>';return;}
+        manCells += estadoCell(r.estado, r.detalle);
+      });
+      trMan.innerHTML=manCells; tbody.appendChild(trMan);
+    });
 
     table.appendChild(tbody);
     tableWrap.appendChild(table);
