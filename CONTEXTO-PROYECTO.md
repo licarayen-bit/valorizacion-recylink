@@ -2,12 +2,12 @@
 
 Este es un archivo HTML standalone (una sola página, sin build) para Recylink, que
 permite hacer seguimiento de valorización de residuos y trazabilidad documental para
-5 empresas cliente: **Copec**, **Socovesa**, **Abastible**, **Gespania** y **Salfa**.
-Sincroniza bidireccionalmente con Google Sheets vía Apps Script.
+6 empresas cliente: **Copec**, **Socovesa**, **Abastible**, **Gespania**, **Salfa** y
+**Euro**. Sincroniza bidireccionalmente con Google Sheets vía Apps Script.
 
 ## Estructura general
 - Un solo archivo HTML con `<style>` y `<script>` embebidos (sin frameworks, JS vanilla).
-- Selector de empresa arriba (Copec / Socovesa / Abastible / Gespania / Salfa) que cambia el contexto global.
+- Selector de empresa arriba (Copec / Socovesa / Abastible / Gespania / Salfa / Euro) que cambia el contexto global.
 - 3 pestañas: **Valorización**, **Trazabilidad**, **Objetivos**.
 - Cada empresa carga datos desde un Excel de trazabilidad (subido por el usuario) o
   desde el Google Sheet correspondiente (botón "↓ Cargar desde Sheets").
@@ -122,7 +122,48 @@ Sincroniza bidireccionalmente con Google Sheets vía Apps Script.
      `calcObjetivos()` (rama `obj.tipo==='segregacion'`) y renderizado en
      `renderCopecObjetivos()` igual que la fila SINADER/KPI.
 
-## Apps Script (estructura común a las 3 empresas originales; Gespania y Salfa siguen el mismo esquema)
+### Euro (agregada 2026-07-24)
+- Sheet ID: `1au2aa9n0Sh6kYS5TEq28g1nmS_4O9tZFDNaf3j7CQoY`
+- `scriptUrl`: `https://script.google.com/macros/s/AKfycbxfxqFZkptLnyUL0Q-P6GFid_z7KVMNAByM0SxQ5pVjg2DP-t-sW9k87KtWGV1AvbMO/exec`
+  (desplegado 2026-07-24, corriendo `Code-Euro.gs`, público desde el primer intento)
+- Sucursales (10, de la hoja `Contactos` — no hardcodeadas en el JS, se derivan del
+  Excel/Sheet como en las demás empresas): Oficina Central, Proyecto Departamental, Proyecto
+  Amengual, Proyecto Santa Elena, Proyecto Entre Vicuñas, Proyecto Mirador Irarrázaval,
+  Proyecto Don Pepe II, Proyecto San Pablo Trotter, Proyecto Alto Irarrázaval, Proyecto
+  Zañartu (la hoja Contactos trae 4 filas con "Zañartu" a secas y 1 con "Proyecto Zañartu";
+  el usuario confirmó que el nombre correcto es **"Proyecto Zañartu"**, así que las filas sin
+  el prefijo en Contactos están mal escritas — no se tocó esa hoja, no la usa el visor).
+- **Excepción única: % de valorización por VOLUMEN (m3), no por peso (kg)**. Se agregó
+  `esEuro` en `processData()` y una variable `metricaVal = esEuro ? m3 : kg` que reemplaza
+  `kg` en la acumulación de `valMatrix[suc][mes].total/val` — todas las demás empresas
+  siguen usando kg sin cambios. `Total Residuos` sigue trackeando ambos (kg y m3) como
+  siempre, no se tocó.
+- `trazDocsCompletos: ['transp','disp']`, `trazDocsInfo: ['cert','factura','decl']`
+- `generaTotalResiduos` incluye a Euro (Sheet ya trae `Total Residuos` y `RESPEL`).
+- Metas: igual que Gespania/Salfa, vía `metasFromSheets` (Sheet no traía filas de Meta%
+  precargadas al momento de agregar la empresa — `♻️ Valorización` estaba completamente vacía).
+- 7 objetivos definidos en la hoja `Objetivos 2026` (8 líneas en el Sheet, pero "5% de
+  valorización en volumen" NO se agregó como fila de objetivo propia — ya queda cubierto por
+  las filas genéricas % Real/Meta 2026/% Acumulado, ahora en base m3 para esta empresa):
+  1. `100% trazabilidad` — tipo `trazabilidad`, estándar
+  2. `Valorizar fierro, madera, cartón` — **tipo nuevo `valorizar_especificos`** (anual):
+     progreso acumulado = (N° de esos 3 residuos valorizados al menos una vez en el año) / 3.
+     Ej. si solo se valorizó Cartón → 33%; si además Madera → 66%; los 3 → 100%. Config del
+     objetivo incluye `residuos:['Fierro','Madera','Cartón']` (comparación normalizada sin
+     tildes vía `normResiduo()`). Implementado en `calcObjetivos()` dentro del bloque de
+     objetivos anuales (agregado a `OBJ_ANUALES`), se renderiza solo porque la tabla "Análisis
+     anual" de `renderCopecObjetivos()` ya es genérica para cualquier tipo en `OBJ_ANUALES`.
+  3. `FGR igual o menor a 0,2` — tipo `manual`
+  4. `Ton CO2 evitadas/M2` — tipo `manual`
+  5. `Contactar Nuevos proveedores` — tipo `manual`
+  6. `Acompañamiento en terreno, mediante charlas y una auditoría` — tipo `manual`
+  7. `Costo/Presupuesto` — tipo `manual`
+- Las hojas `Seguimiento_CSE` y `Config.Flat` de este Sheet traen datos de OTRAS empresas
+  (ANDO, Copec, Daikin, etc.) — el Sheet se clonó de una plantilla compartida y no se limpió.
+  No afecta al visor (no lee esas hojas), es solo cosmético; queda a criterio del usuario
+  limpiarlo.
+
+## Apps Script (estructura común a las 3 empresas originales; Gespania, Salfa y Euro siguen el mismo esquema)
 Cada empresa tiene su propio Google Sheet con 3 hojas, headers en fila 5, datos desde fila 6:
 - `♻️ Valorización` — columnas: `empresa_id | Sucursal | Tipo | Enero...Diciembre` (Tipo = "% Real" o "Meta %")
 - `📊 Trazabilidad_Docs` — columnas: `empresa_id | Sucursal | Mes | Residuo | Transportista(nombre) | Código LER | Importaciones | Cert. tratamiento | Factura | Cert. declaración | Transportista | Disposición final`
@@ -251,6 +292,12 @@ Falta agregar en `doGetClasico_`/`doPost`:
       confirmar que el objetivo `Lograr un FGR de 0,2 m3/m2` (tipo manual) se pueda editar
       directamente en la hoja `🎯 Objetivos` del Sheet (columna `% cumplimiento`, fila con
       Objetivo = ese texto exacto)
+- [ ] Euro: probar "Cargar desde Sheets"/carga de Excel end-to-end una vez desplegado, y
+      confirmar que el % de valorización por volumen (m3) se vea razonable — es la primera
+      empresa con esa base de cálculo, vale la pena una revisión visual extra
+- [ ] Euro: si el usuario quiere, limpiar las hojas `Seguimiento_CSE` y `Config.Flat` del
+      Sheet, que traen datos de otras empresas (ANDO, Copec, Daikin) por venir de una
+      plantilla clonada — no bloquea nada, el visor no las usa
 
 ## Cómo verificar sintaxis JS del archivo
 El HTML es un solo archivo con `<script>...</script>` embebido. Para validar sintaxis:

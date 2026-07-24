@@ -220,6 +220,28 @@ var EMPRESAS = {
       {id:'kpi_costo',    nombre:'KPI costo e ingreso (ingresos > 0)', tipo:'kpi_costo'}
     ]
   },
+  euro: {
+    nombre: 'Euro',
+    scriptUrl: 'https://script.google.com/macros/s/AKfycbxfxqFZkptLnyUL0Q-P6GFid_z7KVMNAByM0SxQ5pVjg2DP-t-sW9k87KtWGV1AvbMO/exec',
+    prefix: 'euro',
+    trazCols: [
+      {header:'Sucursal',key:'suc'},{header:'Mes',key:'mes'},{header:'Residuo',key:'residuo'},
+      {header:'Cod. LER',key:'ler'},{header:'Imp.',key:'imp'},{header:'Cert. trat.',key:'cert'},
+      {header:'Factura',key:'factura'},{header:'Cert. decl.',key:'decl'},
+      {header:'Transportista',key:'transp'},{header:'Disp. final',key:'disp'}
+    ],
+    trazDocsCompletos: ['transp','disp'],
+    trazDocsInfo: ['cert','factura','decl'],
+    objetivos: [
+      {id:'trazabilidad',           nombre:'100% trazabilidad',                                    tipo:'trazabilidad'},
+      {id:'valorizar_especificos',  nombre:'Valorizar fierro, madera, cartón', residuos:['Fierro','Madera','Cartón'], tipo:'valorizar_especificos'},
+      {id:'fgr',                    nombre:'FGR igual o menor a 0,2',                              tipo:'manual'},
+      {id:'co2',                    nombre:'Ton CO2 evitadas/M2',                                  tipo:'manual'},
+      {id:'proveedores',            nombre:'Contactar Nuevos proveedores',                         tipo:'manual'},
+      {id:'acompanamiento',         nombre:'Acompañamiento en terreno, mediante charlas y una auditoría', tipo:'manual'},
+      {id:'costo',                  nombre:'Costo/Presupuesto',                                    tipo:'manual'}
+    ]
+  },
   salfa: {
     nombre: 'Salfa',
     scriptUrl: 'https://script.google.com/macros/s/AKfycbyp5gnnZjhOIpAdTSGn8Nhs0umE_VXbUVTTQLLpjUVRSn2hKy7wFShNUfx_Q8HSI85O/exec',
@@ -305,7 +327,7 @@ function isRespel(residuo) {
   return key.indexOf('respel') >= 0;
 }
 var DOC_LABELS = {cert:'cert. tratamiento',factura:'factura',decl:'cert. declaracion',transp:'transportista',disp:'disposicion final'};
-var OBJ_ANUALES = {valorizar_residuo:1,reg_valorizar:1,respel:1};
+var OBJ_ANUALES = {valorizar_residuo:1,reg_valorizar:1,respel:1,valorizar_especificos:1};
 
 var ABASTIBLE_METAS = {
   'Planta Concón': 15,
@@ -495,7 +517,8 @@ function processData(rows, fname) {
   var esAbastible = empresaActual === 'abastible';
   var esGespania = empresaActual === 'gespania';
   var esSalfa = empresaActual === 'salfa';
-  var generaTotalResiduos = esCopec || esAbastible || esGespania || esSalfa;
+  var esEuro = empresaActual === 'euro';
+  var generaTotalResiduos = esCopec || esAbastible || esGespania || esSalfa || esEuro;
 
   rows.forEach(function(r) {
     var suc = r['Sucursal']||'';
@@ -524,9 +547,11 @@ function processData(rows, fname) {
     // Copec: excluir Respel del calculo de % valorizacion (Total Residuos es la fuente de verdad).
     // Abastible SI genera Total Residuos pero mantiene el % de valorizacion sin excluir Respel.
     var excluirDeVal = esCopec && respel;
+    // Euro mide % de valorizacion por volumen (m3) en vez de peso (kg), unica excepcion.
+    var metricaVal = esEuro ? m3 : kg;
     if (!excluirDeVal) {
-      valMatrix[suc][mes].total+=kg;
-      if (valorizado) valMatrix[suc][mes].val+=kg;
+      valMatrix[suc][mes].total+=metricaVal;
+      if (valorizado) valMatrix[suc][mes].val+=metricaVal;
     }
 
     var key = suc+'||'+mes+'||'+residuo;
@@ -598,7 +623,7 @@ function autoSync(rows) {
   var emp = EMPRESAS[empresaActual];
 
   // Preparar payload valorización
-  var metasActuales = empresaActual === 'copec' ? getCopecMetas() : empresaActual === 'abastible' ? ABASTIBLE_METAS : (empresaActual === 'gespania' || empresaActual === 'salfa') ? metasFromSheets : {};
+  var metasActuales = empresaActual === 'copec' ? getCopecMetas() : empresaActual === 'abastible' ? ABASTIBLE_METAS : (empresaActual === 'gespania' || empresaActual === 'salfa' || empresaActual === 'euro') ? metasFromSheets : {};
   var filasVal = [];
   sucursales.forEach(function(suc){
     var id = sucId(suc);
@@ -611,9 +636,9 @@ function autoSync(rows) {
     filasVal.push([id,suc,'Meta %'].concat(mesesDisp.map(function(){ return metaVal; })));
   });
 
-  // Total Residuos (Copec, Abastible, Gespania y Salfa): Sucursal | Mes | Residuo | Valorizado/No Valorizado | Respel no respel | Total KG | Total M3
+  // Total Residuos (Copec, Abastible, Gespania, Salfa y Euro): Sucursal | Mes | Residuo | Valorizado/No Valorizado | Respel no respel | Total KG | Total M3
   var filasTotalResiduos = [];
-  if (empresaActual === 'copec' || empresaActual === 'abastible' || empresaActual === 'gespania' || empresaActual === 'salfa') {
+  if (empresaActual === 'copec' || empresaActual === 'abastible' || empresaActual === 'gespania' || empresaActual === 'salfa' || empresaActual === 'euro') {
     filasTotalResiduos = totalResiduosRows.map(function(r){
       return [
         r.suc,
@@ -932,6 +957,22 @@ function calcObjetivos() {
         var respelRows=rowsSuc.filter(function(r){return (r['Residuo']+'').toLowerCase().indexOf('respel')>=0;});
         estado=respelRows.length>0?respelRows.length+' retiro'+(respelRows.length!==1?'s':''):'No';
         detalle=respelRows.length===0?'No se registraron retiros de Respel':'';
+      } else if(obj.tipo==='valorizar_especificos'){
+        // Progreso acumulado anual: cada residuo requerido que se haya valorizado
+        // al menos una vez suma 1/N al avance (ej. Euro: Fierro+Madera+Cartón).
+        var reqs=obj.residuos||[];
+        var logrados=[],faltantes=[];
+        reqs.forEach(function(resReq){
+          var keyReq=normResiduo(resReq);
+          var tiene=rowsSuc.some(function(r){return isValorizado(r['Tipo de Tratamiento'])&&normResiduo(r['Residuo'])===keyReq;});
+          if(tiene)logrados.push(resReq);else faltantes.push(resReq);
+        });
+        var pctV=reqs.length>0?(logrados.length/reqs.length*100):0;
+        estado=fmtPct(pctV);
+        var partsV=[];
+        if(logrados.length>0)partsV.push('<span style="color:var(--green)">✓ '+logrados.join(', ')+'</span>');
+        if(faltantes.length>0)partsV.push('Falta: '+faltantes.join(', '));
+        detalle=partsV.join(' · ');
       }
       results.push({suc:suc,mes:'Anual',mesKey:'anual',obj:obj.nombre,estado:estado,detalle:detalle,anual:true});
     });
@@ -1525,7 +1566,7 @@ function renderCopecObjetivos() {
   var grid = document.getElementById('obj-grid');
   grid.innerHTML = '';
   var emp = EMPRESAS[empresaActual];
-  var metas = empresaActual === 'copec' ? getCopecMetas() : (empresaActual === 'abastible' ? ABASTIBLE_METAS : ((empresaActual === 'gespania' || empresaActual === 'salfa') ? metasFromSheets : {}));
+  var metas = empresaActual === 'copec' ? getCopecMetas() : (empresaActual === 'abastible' ? ABASTIBLE_METAS : ((empresaActual === 'gespania' || empresaActual === 'salfa' || empresaActual === 'euro') ? metasFromSheets : {}));
   var sucsToShow = fS === 'all' ? sucursales : [fS];
   var mesesToShow = fM === 'all' ? mesesDisp : [fM];
 
