@@ -220,6 +220,25 @@ var EMPRESAS = {
       {id:'kpi_costo',    nombre:'KPI costo e ingreso (ingresos > 0)', tipo:'kpi_costo'}
     ]
   },
+  salfa: {
+    nombre: 'Salfa',
+    scriptUrl: 'https://script.google.com/macros/s/AKfycbyp5gnnZjhOIpAdTSGn8Nhs0umE_VXbUVTTQLLpjUVRSn2hKy7wFShNUfx_Q8HSI85O/exec',
+    prefix: 'salfa',
+    trazCols: [
+      {header:'Sucursal',key:'suc'},{header:'Mes',key:'mes'},{header:'Residuo',key:'residuo'},
+      {header:'Cod. LER',key:'ler'},{header:'Imp.',key:'imp'},{header:'Cert. trat.',key:'cert'},
+      {header:'Factura',key:'factura'},{header:'Cert. decl.',key:'decl'},
+      {header:'Transportista',key:'transp'},{header:'Disp. final',key:'disp'}
+    ],
+    trazDocsCompletos: ['transp','disp'],
+    trazDocsInfo: ['cert','factura','decl'],
+    objetivos: [
+      {id:'trazabilidad',  nombre:'100% trazabilidad',                              tipo:'trazabilidad'},
+      {id:'sinader',       nombre:'cumplir declaración SINADER',                    tipo:'sinader'},
+      {id:'kpi_costo',     nombre:'KPI Costo ingreso',                              tipo:'kpi_costo'},
+      {id:'segregacion',   nombre:'Asegurar una correcta segregación de residuos',  tipo:'segregacion'}
+    ]
+  },
   gespania: {
     nombre: 'Gespania',
     scriptUrl: 'https://script.google.com/macros/s/AKfycbwENVSOcXoQalAD2b-INqsFx0hVehfwXwrVqegY_2zj_B7S2t_dFqlo_qH1JeYqr9ER/exec',
@@ -475,7 +494,8 @@ function processData(rows, fname) {
   var esCopec = empresaActual === 'copec';
   var esAbastible = empresaActual === 'abastible';
   var esGespania = empresaActual === 'gespania';
-  var generaTotalResiduos = esCopec || esAbastible || esGespania;
+  var esSalfa = empresaActual === 'salfa';
+  var generaTotalResiduos = esCopec || esAbastible || esGespania || esSalfa;
 
   rows.forEach(function(r) {
     var suc = r['Sucursal']||'';
@@ -512,6 +532,10 @@ function processData(rows, fname) {
     var key = suc+'||'+mes+'||'+residuo;
     // Para trazabilidad y objetivos solo considerar operaciones finalizadas
     if (estado !== 'finalizada' && estado !== 'finalizado') return;
+    // Una operacion de 0 kilos no cuenta para efectos de trazabilidad (no afecta
+    // Importaciones/Documentos/100% trazabilidad ni Total Residuos ya la excluye
+    // implicitamente al sumar 0).
+    if (kg === 0) return;
     if (!trazMap[key]) {
       var tn = (r['Razon Social Empresa Transportista']||r['Razón Social Empresa Transportista']||r['Nombre de Fantasía Empresa Transportista']||'').trim()
             || (r['RUT de Empresa Transportista']||'').trim();
@@ -574,7 +598,7 @@ function autoSync(rows) {
   var emp = EMPRESAS[empresaActual];
 
   // Preparar payload valorización
-  var metasActuales = empresaActual === 'copec' ? getCopecMetas() : empresaActual === 'abastible' ? ABASTIBLE_METAS : empresaActual === 'gespania' ? metasFromSheets : {};
+  var metasActuales = empresaActual === 'copec' ? getCopecMetas() : empresaActual === 'abastible' ? ABASTIBLE_METAS : (empresaActual === 'gespania' || empresaActual === 'salfa') ? metasFromSheets : {};
   var filasVal = [];
   sucursales.forEach(function(suc){
     var id = sucId(suc);
@@ -587,9 +611,9 @@ function autoSync(rows) {
     filasVal.push([id,suc,'Meta %'].concat(mesesDisp.map(function(){ return metaVal; })));
   });
 
-  // Total Residuos (Copec, Abastible y Gespania): Sucursal | Mes | Residuo | Valorizado/No Valorizado | Respel no respel | Total KG | Total M3
+  // Total Residuos (Copec, Abastible, Gespania y Salfa): Sucursal | Mes | Residuo | Valorizado/No Valorizado | Respel no respel | Total KG | Total M3
   var filasTotalResiduos = [];
-  if (empresaActual === 'copec' || empresaActual === 'abastible' || empresaActual === 'gespania') {
+  if (empresaActual === 'copec' || empresaActual === 'abastible' || empresaActual === 'gespania' || empresaActual === 'salfa') {
     filasTotalResiduos = totalResiduosRows.map(function(r){
       return [
         r.suc,
@@ -993,6 +1017,18 @@ function calcObjetivos() {
             var nDon=rowsSM.length-total;
             if(nDon>0)detalle+=' ('+nDon+' donacion'+(nDon!==1?'es':'')+' excluida'+(nDon!==1?'s':'')+')';
           }
+
+        } else if(obj.tipo==='segregacion'){
+          // Correcta segregacion: OK si aparece algun residuo que no sea
+          // Escombro/Excavacion/Domiciliario ese mes (Salfa).
+          var genericosSeg={escombro:1,excavacion:1,domiciliario:1,domiciliarios:1};
+          var otrosRes=[];
+          trazSM.forEach(function(r){
+            var keySeg=normResiduo(r.residuo);
+            if(keySeg && !genericosSeg[keySeg] && otrosRes.indexOf(r.residuo)<0) otrosRes.push(r.residuo);
+          });
+          estado=otrosRes.length>0?'OK':'No';
+          detalle=otrosRes.length>0?otrosRes.join(', '):'Solo Escombro/Excavación/Domiciliario registrados este mes';
 
         } else if(obj.tipo==='kpi_costo'){
           // KPI costo e ingreso: OK si hay costo de transporte O ingreso por venta (cualquiera > 0)
@@ -1489,7 +1525,7 @@ function renderCopecObjetivos() {
   var grid = document.getElementById('obj-grid');
   grid.innerHTML = '';
   var emp = EMPRESAS[empresaActual];
-  var metas = empresaActual === 'copec' ? getCopecMetas() : (empresaActual === 'abastible' ? ABASTIBLE_METAS : (empresaActual === 'gespania' ? metasFromSheets : {}));
+  var metas = empresaActual === 'copec' ? getCopecMetas() : (empresaActual === 'abastible' ? ABASTIBLE_METAS : ((empresaActual === 'gespania' || empresaActual === 'salfa') ? metasFromSheets : {}));
   var sucsToShow = fS === 'all' ? sucursales : [fS];
   var mesesToShow = fM === 'all' ? mesesDisp : [fM];
 
@@ -1711,6 +1747,20 @@ function renderCopecObjetivos() {
         kpiCells += estadoCell(r.estado, r.detalle);
       });
       trKpi.innerHTML=kpiCells; tbody.appendChild(trKpi);
+    }
+
+    // Fila segregacion de residuos (solo Salfa)
+    var objSegregacion = (emp.objetivos || []).find(function(o){ return o.tipo === 'segregacion'; });
+    if (objSegregacion) {
+      var trSeg=document.createElement('tr');
+      trSeg.style.borderTop='1px solid var(--border)';
+      var segCells='<td style="padding:9px 12px;font-weight:500;color:var(--text);border-right:1px solid var(--border)">'+objSegregacion.nombre+'</td>';
+      mesesToShow.forEach(function(m){
+        var r = objBySucMes[suc+'|'+m+'|'+objSegregacion.nombre];
+        if(!r){segCells+='<td style="padding:9px 12px;text-align:center;border-left:1px solid var(--border);color:var(--text-muted)">--</td>';return;}
+        segCells += estadoCell(r.estado, r.detalle);
+      });
+      trSeg.innerHTML=segCells; tbody.appendChild(trSeg);
     }
 
     // Filas de objetivos manuales (ej: Gespania — FGR, valorizar % en kg).

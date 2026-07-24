@@ -2,12 +2,12 @@
 
 Este es un archivo HTML standalone (una sola página, sin build) para Recylink, que
 permite hacer seguimiento de valorización de residuos y trazabilidad documental para
-4 empresas cliente: **Copec**, **Socovesa**, **Abastible** y **Gespania**. Sincroniza
-bidireccionalmente con Google Sheets vía Apps Script.
+5 empresas cliente: **Copec**, **Socovesa**, **Abastible**, **Gespania** y **Salfa**.
+Sincroniza bidireccionalmente con Google Sheets vía Apps Script.
 
 ## Estructura general
 - Un solo archivo HTML con `<style>` y `<script>` embebidos (sin frameworks, JS vanilla).
-- Selector de empresa arriba (Copec / Socovesa / Abastible / Gespania) que cambia el contexto global.
+- Selector de empresa arriba (Copec / Socovesa / Abastible / Gespania / Salfa) que cambia el contexto global.
 - 3 pestañas: **Valorización**, **Trazabilidad**, **Objetivos**.
 - Cada empresa carga datos desde un Excel de trazabilidad (subido por el usuario) o
   desde el Google Sheet correspondiente (botón "↓ Cargar desde Sheets").
@@ -89,7 +89,40 @@ bidireccionalmente con Google Sheets vía Apps Script.
   estado para estos (no hay `else if(obj.tipo==='manual')` en el switch), así que quedan en
   "--" hasta que alguien llene manualmente `% cumplimiento` en la hoja `🎯 Objetivos`.
 
-## Apps Script (estructura común a las 3 empresas originales; Gespania sigue el mismo esquema)
+### Salfa (agregada 2026-07-24)
+- Sheet ID: `1LtRSJ-ZYPYoFmGHUik03OAVYxzg9REPn5NTIGhostGI`
+- `scriptUrl`: `https://script.google.com/macros/s/AKfycbyp5gnnZjhOIpAdTSGn8Nhs0umE_VXbUVTTQLLpjUVRSn2hKy7wFShNUfx_Q8HSI85O/exec`
+  (Code-Salfa.gs, mismo patrón que Code-Gespania.gs)
+- Sucursales: "Novatec Pucará" e "Inoval Brisas de san pedro" — OJO: son nombres de los
+  **contratistas** que operan cada obra (no "Salfa X"), confirmados por el usuario como
+  los mismos que trae el Excel a subir, texto exacto.
+- **Bug de onboarding encontrado**: en `♻️ Valorización` las 6 filas de datos precargadas
+  a mano tenían la columna `empresa_id` (col. A) completamente vacía, y el `readSheet()`
+  del Apps Script filtra `r[0] !== ''`, así que `doGet` devolvía `valorizacion: []` pese a
+  que el Sheet se veía con datos. Se le pidió al usuario llenar A6:A11 con cualquier texto
+  no vacío (ej. "Salfa") como fix inmediato. Al subir el Excel real, la app va a crear filas
+  con `empresa_id` propio por sucursal (vía `sucId()`) y las genéricas quedarán huérfanas
+  — mismo patrón de limpieza manual que se hizo con Gespania (ver más abajo).
+- `trazDocsCompletos: ['transp','disp']`, `trazDocsInfo: ['cert','factura','decl']`
+- `generaTotalResiduos` incluye a Salfa (ya trae las pestañas `Total Residuos` y `RESPEL`
+  creadas en el Sheet).
+- Metas: igual que Gespania, se leen de `metasFromSheets` (no hay objeto hardcodeado ni
+  edición desde la app). Al momento de agregar la empresa estaban en 0% para ambas
+  sucursales (sin definir aún).
+- 4 objetivos (definidos en la hoja `Objetivos 2026` del Sheet, texto exacto):
+  1. `100% trazabilidad` — tipo `trazabilidad`, cálculo estándar
+  2. `cumplir declaración SINADER` — tipo `sinader`, mismo cálculo que Abastible/Socovesa/Gespania
+  3. `KPI Costo ingreso` — tipo `kpi_costo`, mismo cálculo que Abastible (OK si `Total Costo
+     Neto de Transporte > 0` O `Precio por Venta de Residuo > 0`)
+  4. `Asegurar una correcta segregación de residuos` — **tipo nuevo `segregacion`**, calculado
+     (no manual): OK si en ese mes/sucursal aparece algún residuo que **no** sea
+     Escombro/Excavación/Domiciliario (comparación normalizada sin tildes vía `normResiduo()`);
+     si todos los residuos del mes son de esas 3 categorías genéricas, da "No" (no se está
+     segregando). Detalle lista los residuos "extra" encontrados. Implementado en
+     `calcObjetivos()` (rama `obj.tipo==='segregacion'`) y renderizado en
+     `renderCopecObjetivos()` igual que la fila SINADER/KPI.
+
+## Apps Script (estructura común a las 3 empresas originales; Gespania y Salfa siguen el mismo esquema)
 Cada empresa tiene su propio Google Sheet con 3 hojas, headers en fila 5, datos desde fila 6:
 - `♻️ Valorización` — columnas: `empresa_id | Sucursal | Tipo | Enero...Diciembre` (Tipo = "% Real" o "Meta %")
 - `📊 Trazabilidad_Docs` — columnas: `empresa_id | Sucursal | Mes | Residuo | Transportista(nombre) | Código LER | Importaciones | Cert. tratamiento | Factura | Cert. declaración | Transportista | Disposición final`
@@ -110,6 +143,12 @@ Funciones del Apps Script (`doPost`, `doGet`):
 
 - `isValorizado(trat)` — determina si un tipo de tratamiento cuenta como valorización.
   Normaliza Unicode (NFD, quita tildes) antes de comparar contra `VALORIZADOS_LIST`.
+- `processData()` (regla agregada 2026-07-24, aplica a las 5 empresas): una operación del
+  Excel con `Control de Peso (Kg) === 0` NO se considera para efectos de trazabilidad — no
+  incrementa `Importaciones` ni los conteos de documentos, así que no entra en el cálculo de
+  `100% trazabilidad` ni en "Documentos adicionales" (y de rebote tampoco en KPI costo/ingreso,
+  que se calcula desde el mismo grupo). SÍ sigue sumando a `valMatrix` (% valorización) y a
+  `Total Residuos`, porque el pedido fue específicamente "para efectos de trazabilidad".
 - `calcObjetivos()` — función central que calcula TODOS los objetivos (trazabilidad,
   sinader, kpi_costo, anuales) para todas las sucursales/meses desde `rawRows` (datos del Excel).
   Devuelve array de `{suc, mes, mesKey, obj, estado, detalle, anual, infoOnly}`.
