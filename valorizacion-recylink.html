@@ -546,7 +546,9 @@ function processData(rows, fname) {
     if (!valMatrix[suc][mes]) valMatrix[suc][mes]={total:0,val:0};
     // Copec: excluir Respel del calculo de % valorizacion (Total Residuos es la fuente de verdad).
     // Abastible SI genera Total Residuos pero mantiene el % de valorizacion sin excluir Respel.
-    var excluirDeVal = esCopec && respel;
+    // Excavacion se excluye del % de valorizacion en todos los casos (todas las empresas).
+    var esExcavacion = normResiduo(residuo) === 'excavacion';
+    var excluirDeVal = (esCopec && respel) || esExcavacion;
     // Euro mide % de valorizacion por volumen (m3) en vez de peso (kg), unica excepcion.
     var metricaVal = esEuro ? m3 : kg;
     if (!excluirDeVal) {

@@ -250,6 +250,13 @@ hoja "Total Residuos" con la clasificación Valorizado/Respel por fila.
 `autoSync()` también escribe una fila `% Acumulado` en ♻️ Valorización (antes solo se escribía `% Real`
 y `Meta %`; la fila `% Acumulado` ya existía vacía en el Sheet pero nada la llenaba).
 
+**Excavación excluida del % de valorización en TODAS las empresas** (decisión tomada 2026-07-24):
+en `processData()`, `excluirDeVal` ahora también es `true` cuando `normResiduo(residuo) === 'excavacion'`
+(comparación normalizada, sin tildes), sin importar la empresa — a diferencia de la exclusión de Respel
+que es solo para Copec. Las operaciones de Excavación no suman ni al total ni al valorizado de
+`valMatrix`, así que no afectan `% Real`/`% Acumulado` de ninguna sucursal. Sigue sumando normalmente
+a `Total Residuos` (no se tocó esa parte).
+
 **Apps Script pendiente de agregar manualmente** (no hay acceso de edición directa al proyecto
 de Apps Script desde aquí — vive en Google, no en este repo). El Code.gs real de Copec tiene
 DOS doGet fusionados: `doGetClasico_` (el que consume `valorizacion-recylink.html`, sin query
